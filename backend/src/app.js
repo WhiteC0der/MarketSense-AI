@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import newsRouter from "./router/news.router.js";
+import chatRouter from "./router/chat.router.js";
 
 const app = express();
 
@@ -19,5 +20,7 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api/v1/news", newsRouter);
+app.use("/api/v1/chat", chatRouter);
+
 
 export default app;
