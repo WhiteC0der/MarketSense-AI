@@ -1,12 +1,11 @@
-// backend/models/News.js
-import mongoose,{Schema} from 'mongoose';
+import mongoose, { Schema } from 'mongoose';
 
 const newsSchema = new Schema({
     ticker: {
         type: String,
         required: true,
         uppercase: true,
-        index: true // Makes searching by stock symbol faster
+        index: true 
     },
     headline: {
         type: String,
@@ -24,10 +23,9 @@ const newsSchema = new Schema({
         type: Date,
         required: true
     },
-    // THIS IS THE RAG MAGIC:
     embedding: {
-        type: [Number], // An array of floating-point numbers
-        required: false // It's false initially because we add it *after* fetching the news
+        type: [Number],
+        required: false
     }
 }, { timestamps: true });
 
