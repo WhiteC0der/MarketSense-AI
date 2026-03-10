@@ -8,17 +8,19 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 router.post('/', async (req, res) => {
     try {
-        const { question } = req.body;
+        const { question, ticker } = req.body;
         
-        if (!question) {
-            return res.status(400).json({ error: "Please provide a question." });
+        if (!question || !ticker) {
+            return res.status(400).json({ error: "Please provide a question and a ticker." });
         }
 
         console.log(`User asks: "${question}"`);
+        
+        const enrichedQuery = `Financial news and market analysis specifically regarding ${ticker} stock. User question: ${question}`;
 
         const embedResponse = await ai.models.embedContent({
             model: 'gemini-embedding-001', 
-            contents: question,
+            contents: enrichedQuery,
         });
         const queryVector = embedResponse.embeddings[0].values;
 
@@ -50,7 +52,9 @@ router.post('/', async (req, res) => {
         
         const finalPrompt = `
         You are a highly intelligent financial AI assistant. 
+        The user is currently looking at the stock chart for: ${ticker}.
         Use ONLY the following recent news articles to answer the user's question. 
+        If the user asks a vague question like "Why is it dropping?", assume they are talking about ${ticker}.
         If the answer is not contained in the articles, say "I don't have enough data to answer that." 
         Do not hallucinate external information.
 
