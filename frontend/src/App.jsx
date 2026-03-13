@@ -3,6 +3,10 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import ChatInterface from './components/ChatInterface';
 import StockChart from './components/StockChart';
+import Auth from './components/Auth';
+
+// Tell Axios to ALWAYS send the HTTP-Only cookie with every request to the backend
+axios.defaults.withCredentials = true;
 
 function App() {
   const [ticker, setTicker] = useState("AAPL");
@@ -10,24 +14,60 @@ function App() {
   const [isIngesting, setIsIngesting] = useState(false);
 
   // Handle the search bar submission
+  // Handle the search bar submission
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!searchInput.trim()) return;
     
-    const newTicker = searchInput.toUpperCase().trim();
-    setTicker(newTicker); // This instantly updates the StockChart
-    setSearchInput("");   // Clear the input box
-
-    // Trigger the background AI ingestion pipeline
     setIsIngesting(true);
+    const rawInput = searchInput.trim();
+    setSearchInput(""); 
+
+    let officialTicker = "";
+
+    // STEP 1: Translate the Ticker
     try {
-      console.log(`Commanding backend to ingest data for ${newTicker}...`);
-      await axios.post(`http://localhost:3000/api/v1/news/ingest/${newTicker}`);
-      console.log(`Ingestion complete for ${newTicker}. Database updated.`);
+      console.log(`Translating human text: "${rawInput}"...`);
+      const searchResponse = await axios.get(`http://localhost:3000/api/v1/stock/search/${rawInput}`);
+      officialTicker = searchResponse.data.symbol.toUpperCase(); 
+      console.log(`Successfully translated to: ${officialTicker}`);
+      
+      setTicker(officialTicker); // Update the chart
     } catch (error) {
-      console.error("Failed to ingest new stock data", error);
+      console.error("Translation Failed:", error);
+      alert(`Sorry, we couldn't find a valid stock ticker for "${rawInput}".`);
+      setIsIngesting(false);
+      return; // Stop the function here if translation fails
+    }
+
+    // STEP 2: Ingest the News
+    try {
+      console.log(`Starting ingestion for ${officialTicker}...`);
+      await axios.post(`http://localhost:3000/api/v1/news/ingest/${officialTicker}`);
+      console.log(`Ingestion complete for ${officialTicker}`);
+    } catch (error) {
+      console.error("Ingestion Failed:", error);
+      alert(`We found ${officialTicker}, but failed to download the latest news. (Check backend terminal for Gemini rate limits).`);
     } finally {
       setIsIngesting(false);
+    }
+  };
+
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
+  // ... (Keep all your existing state variables like ticker, searchInput, etc.) ...
+
+  // 2. The Gatekeeper: If not authenticated, ONLY render the Auth component
+  if (!isAuthenticated) {
+    return <Auth onLoginSuccess={() => setIsAuthenticated(true)} />;
+  }
+
+  const handleLogout = async () => {
+    try {
+      await axios.post('http://localhost:3000/api/v1/auth/logout');
+      setIsAuthenticated(false); // This instantly kicks them back to the Login screen
+    } catch (error) {
+      console.error("Logout failed:", error);
     }
   };
 
@@ -55,6 +95,12 @@ function App() {
             SCAN
           </button>
         </form>
+        <button 
+  onClick={handleLogout} 
+  className="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm transition-colors"
+>
+  Logout
+</button>
 
         {/* Loading indicator for the background database update */}
         {isIngesting && (
