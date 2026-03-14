@@ -10,6 +10,16 @@ const yahooFinance = new YahooFinance({
 const normalizeSearchText = (value = '') =>
     value.toLowerCase().replace(/[^a-z0-9]/g, '');
 
+const isPreferredCommonStockSymbol = (symbol = '') => /^[A-Z]{1,5}$/.test(symbol);
+
+const isLikelyDerivedOrCrossListedSymbol = (symbol = '') =>
+    /[.=]/.test(symbol) || /\d/.test(symbol);
+
+const isPreferredExchange = (exchange = '') =>
+    ['NMS', 'NYQ', 'ASE', 'BTS'].includes(exchange);
+
+const MINIMUM_ACCEPTABLE_MATCH_SCORE = 70;
+
 const scoreQuoteMatch = (quote, rawQuery) => {
     const query = normalizeSearchText(rawQuery);
     const symbol = normalizeSearchText(quote.symbol || '');
@@ -19,6 +29,9 @@ const scoreQuoteMatch = (quote, rawQuery) => {
     let score = 0;
 
     if (quote.quoteType === 'EQUITY') score += 50;
+    if (isPreferredCommonStockSymbol(quote.symbol || '')) score += 20;
+    if (isPreferredExchange(quote.exchange || '')) score += 10;
+    if (isLikelyDerivedOrCrossListedSymbol(quote.symbol || '')) score -= 30;
     if (symbol === query) score += 100;
     if (shortName === query || longName === query) score += 90;
     if (symbol.startsWith(query)) score += 40;
@@ -35,11 +48,29 @@ router.get('/search/:query', async (req, res) => {
         const result = await yahooFinance.search(query);
         
         if (result.quotes && result.quotes.length > 0) {
-            const rankedQuotes = [...result.quotes].sort(
+            const equityQuotes = result.quotes.filter((quote) => quote.quoteType === 'EQUITY');
+
+            if (equityQuotes.length === 0) {
+                return res.status(404).json({ error: "No stock match found. Please type a proper company name or exact stock ticker." });
+            }
+
+            const preferredCommonStocks = equityQuotes.filter(
+                (quote) => isPreferredCommonStockSymbol(quote.symbol || '') && !isLikelyDerivedOrCrossListedSymbol(quote.symbol || '')
+            );
+
+            const candidates = preferredCommonStocks.length > 0 ? preferredCommonStocks : equityQuotes;
+
+            const rankedQuotes = [...candidates].sort(
                 (left, right) => scoreQuoteMatch(right, query) - scoreQuoteMatch(left, query)
             );
 
             const bestMatch = rankedQuotes[0];
+            const bestScore = scoreQuoteMatch(bestMatch, query);
+
+            if (bestScore < MINIMUM_ACCEPTABLE_MATCH_SCORE) {
+                return res.status(404).json({ error: "No stock match found. Please type a proper company name or exact stock ticker." });
+            }
+
             return res.status(200).json({ symbol: bestMatch.symbol });
         } else {
             return res.status(404).json({ error: "No stock match found. Please type a proper company name or exact stock ticker." });
