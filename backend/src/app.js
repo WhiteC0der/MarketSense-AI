@@ -11,7 +11,7 @@ import protect from "./middleware/auth.middleware.js";
 const app = express();
 
 app.use(cors({
-    origin: 'http://localhost:5173', // Change this to your Vercel URL later
+    origin: ['http://localhost:5173', 'http://localhost:3000'], // Frontend dev + prod
     credentials: true 
 }));
 

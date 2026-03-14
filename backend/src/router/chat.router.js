@@ -6,6 +6,70 @@ import Conversation from '../models/conversation.model.js'; // Ensure this path 
 const router = express.Router();
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+const isTickerFilterIndexError = (error) => {
+    const message = String(error?.message || "");
+    return message.includes("needs to be indexed as filter") && message.includes("ticker");
+};
+
+const runVectorSearch = async (queryVector, ticker) => {
+    const projectStage = {
+        "$project": {
+            "_id": 0,
+            "headline": 1,
+            "summary": 1,
+            "url": 1,
+            "ticker": 1,
+            "score": { "$meta": "vectorSearchScore" }
+        }
+    };
+
+    try {
+        // Preferred path: filter in vector search (requires ticker to be configured as filter field in Atlas index).
+        return await News.aggregate([
+            {
+                "$vectorSearch": {
+                    "index": "vector_index",
+                    "path": "embedding",
+                    "queryVector": queryVector,
+                    "numCandidates": 10,
+                    "limit": 3,
+                    "filter": {
+                        "ticker": ticker.toUpperCase()
+                    }
+                }
+            },
+            projectStage
+        ]);
+    } catch (error) {
+        if (!isTickerFilterIndexError(error)) {
+            throw error;
+        }
+
+        // Fallback path: run without filter, then keep only matching ticker documents.
+        // This keeps chat operational when Atlas index filter mapping is not configured yet.
+        const unfilteredResults = await News.aggregate([
+            {
+                "$vectorSearch": {
+                    "index": "vector_index",
+                    "path": "embedding",
+                    "queryVector": queryVector,
+                    "numCandidates": 25,
+                    "limit": 10
+                }
+            },
+            projectStage
+        ]);
+
+        const normalizedTicker = ticker.toUpperCase();
+        const tickerMatched = unfilteredResults
+            .filter((doc) => String(doc.ticker || "").toUpperCase() === normalizedTicker)
+            .slice(0, 3)
+            .map(({ ticker: _ticker, ...rest }) => rest);
+
+        return tickerMatched;
+    }
+};
+
 const getAuthenticatedUserId = (req, res) => {
     const userId = req.user?.userId;
     if (!userId) {
@@ -85,32 +149,8 @@ router.post('/', async (req, res) => {
         // We will keep your syntax here assuming it worked for you!
         const queryVector = embedResponse.embeddings[0].values || embedResponse.embeddings[0]; 
 
-        // B. Vector Search in MongoDB (filtered by ticker)
-        const searchResults = await News.aggregate([
-            {
-                "$match": {
-                    "ticker": ticker.toUpperCase()
-                }
-            },
-            {
-                "$vectorSearch": {
-                    "index": "vector_index",
-                    "path": "embedding",
-                    "queryVector": queryVector,
-                    "numCandidates": 10,
-                    "limit": 3
-                }
-            },
-            {
-                "$project": {
-                    "_id": 0,
-                    "headline": 1,
-                    "summary": 1,
-                    "url": 1, // Added URL so your React UI can link to the actual article!
-                    "score": { "$meta": "vectorSearchScore" }
-                }
-            }
-        ]);
+        // B. Vector Search in MongoDB
+        const searchResults = await runVectorSearch(queryVector, ticker);
 
         // C. Build the Context and Prompt
         const contextText = searchResults.length > 0 
