@@ -1,4 +1,3 @@
-// backend/routes/stockRoutes.js
 import express from 'express';
 import YahooFinance from 'yahoo-finance2';
 
@@ -29,9 +28,6 @@ const scoreQuoteMatch = (quote, rawQuery) => {
     return score;
 };
 
-// ==========================================
-// 1. MUST BE FIRST: The Translator Route
-// ==========================================
 router.get('/search/:query', async (req, res) => {
     try {
         const query = req.params.query.trim();
@@ -53,9 +49,6 @@ router.get('/search/:query', async (req, res) => {
     }
 });
 
-// ==========================================
-// 2. MUST BE SECOND: The Data Route
-// ==========================================
 router.get('/:ticker', async (req, res) => {
     try {
         const ticker = req.params.ticker.toUpperCase();
