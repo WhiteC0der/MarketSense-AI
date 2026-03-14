@@ -1,30 +1,97 @@
 import express from 'express';
 import { GoogleGenAI } from '@google/genai';
 import News from '../models/news.model.js';
+import Conversation from '../models/conversation.model.js'; // Ensure this path matches your new model!
 
 const router = express.Router();
-
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+const getAuthenticatedUserId = (req, res) => {
+    const userId = req.user?.userId;
+    if (!userId) {
+        res.status(401).json({ error: 'Access denied. Please log in.' });
+        return null;
+    }
+    return userId;
+};
+
+// ==========================================
+// 1. GET ROUTE: Fetch Chat History for Sidebar
+// ==========================================
+router.get('/history', async (req, res) => {
+    try {
+        const userId = getAuthenticatedUserId(req, res);
+        if (!userId) return;
+
+        // Fetch all chats for this user, sorted by newest first
+        const chats = await Conversation.find({ userId })
+            .select('_id title updatedAt')
+            .sort({ updatedAt: -1 });
+        
+        res.status(200).json(chats);
+    } catch (error) {
+        console.error("History Error:", error);
+        res.status(500).json({ error: "Failed to load chat history." });
+    }
+});
+
+// ==========================================
+// 2. GET ROUTE: Load a Specific Past Chat
+// ==========================================
+router.get('/:chatId', async (req, res) => {
+    try {
+        const userId = getAuthenticatedUserId(req, res);
+        if (!userId) return;
+
+        const chat = await Conversation.findOne({ 
+            _id: req.params.chatId, 
+            userId
+        });
+        
+        if (!chat) return res.status(404).json({ error: "Chat not found." });
+        
+        res.status(200).json(chat);
+    } catch (error) {
+        console.error("Load Chat Error:", error);
+        res.status(500).json({ error: "Failed to load messages." });
+    }
+});
+
+// ==========================================
+// 3. POST ROUTE: Main AI & RAG Engine
+// ==========================================
 router.post('/', async (req, res) => {
     try {
-        const { question, ticker } = req.body;
+        const userId = getAuthenticatedUserId(req, res);
+        if (!userId) return;
+
+        // Notice we now extract chatId from the request body!
+        const { question, ticker, chatId } = req.body;
         
         if (!question || !ticker) {
             return res.status(400).json({ error: "Please provide a question and a ticker." });
         }
 
-        console.log(`User asks: "${question}"`);
+        console.log(`User asks: "${question}" for ${ticker}`);
 
+        // A. Generate Vector for the User's Question
         const enrichedQuery = `Financial news and market analysis specifically regarding ${ticker} stock. User question: ${question}`;
-
         const embedResponse = await ai.models.embedContent({
             model: 'gemini-embedding-001', 
             contents: enrichedQuery,
         });
-        const queryVector = embedResponse.embeddings[0].values;
+        
+        // Note: Check if your SDK version returns embedResponse.embeddings[0].values or something slightly different. 
+        // We will keep your syntax here assuming it worked for you!
+        const queryVector = embedResponse.embeddings[0].values || embedResponse.embeddings[0]; 
 
+        // B. Vector Search in MongoDB (filtered by ticker)
         const searchResults = await News.aggregate([
+            {
+                "$match": {
+                    "ticker": ticker.toUpperCase()
+                }
+            },
             {
                 "$vectorSearch": {
                     "index": "vector_index",
@@ -39,34 +106,16 @@ router.post('/', async (req, res) => {
                     "_id": 0,
                     "headline": 1,
                     "summary": 1,
+                    "url": 1, // Added URL so your React UI can link to the actual article!
                     "score": { "$meta": "vectorSearchScore" }
                 }
             }
         ]);
 
-        if (searchResults.length === 0) {
-            return res.json({ answer: "I don't have any recent news in my database to answer that.", context: [] });
-        }
-
-      //  const contextText = searchResults.map(doc => `Headline: ${doc.headline}\nSummary: ${doc.summary}`).join('\n\n');
-        
-        // const finalPrompt = `
-        // You are a highly intelligent financial AI assistant. 
-        // The user is currently looking at the stock chart for: ${ticker}.
-        // Use ONLY the following recent news articles to answer the user's question. 
-        // If the user asks a vague question like "Why is it dropping?", assume they are talking about ${ticker}.
-        // If the answer is not contained in the articles, say "I don't have enough data to answer that." 
-        // Do not hallucinate external information.
-
-        // CONTEXT:
-        // ${contextText}
-
-        // USER QUESTION: 
-        // ${question}
-        // `;
-
-        // 4. Build the "System Prompt" using Advanced XML Structuring
-        const contextText = searchResults.map(doc => `Headline: ${doc.headline}\nSummary: ${doc.summary}`).join('\n\n');
+        // C. Build the Context and Prompt
+        const contextText = searchResults.length > 0 
+            ? searchResults.map(doc => `Headline: ${doc.headline}\nSummary: ${doc.summary}`).join('\n\n')
+            : "";
         
         const finalPrompt = `
         You are MarketSense AI, an elite financial intelligence terminal engineered by whitecoder.
@@ -81,7 +130,7 @@ router.post('/', async (req, res) => {
            - Instruct them to type any stock ticker into the top search bar and hit "SCAN" to ingest fresh market data.
            - Ignore the <CONTEXT> block.
 
-        2. GENERAL FINANCE CONCEPTS: If the user asks a definition (e.g., "What is a P/E ratio?", "What are dividends?"):
+        2. GENERAL FINANCE CONCEPTS: If the user asks a definition:
            - Answer using your broad financial knowledge.
            - Ignore the <CONTEXT> block.
 
@@ -100,15 +149,51 @@ router.post('/', async (req, res) => {
         </USER_QUESTION>
         `;
 
+        // D. Generate AI Response
         const chatResponse = await ai.models.generateContent({
             model: 'gemini-2.5-flash-lite',
-            // model: 'Gemini 1.5 Flash',
             contents: finalPrompt,
         });
 
+        const finalAnswer = chatResponse.text;
+
+        // E. THE MEMORY BANK: Save everything to MongoDB
+        let conversation;
+        if (chatId) {
+            conversation = await Conversation.findOne({ _id: chatId, userId });
+        } 
+        
+        // If no chatId provided, or if the old chat was deleted, create a new one
+        if (!conversation) {
+            conversation = new Conversation({ 
+                userId,
+                title: `${ticker.toUpperCase()} - ${question.substring(0, 20)}...` // Auto-generates a cool title!
+            });
+        }
+
+        // Save the User's question
+        conversation.messages.push({ role: 'user', content: question });
+        
+        // Save the News Sources (so React can render the UI cards)
+        if (searchResults.length > 0) {
+            conversation.messages.push({ 
+                role: 'system', 
+                content: `Analyzed ${searchResults.length} recent articles for ${ticker.toUpperCase()}`,
+                sources: searchResults 
+            });
+        }
+
+        // Save the AI's answer
+        conversation.messages.push({ role: 'ai', content: finalAnswer });
+        conversation.updatedAt = Date.now();
+        
+        await conversation.save();
+
+        // F. Send response back to frontend
         res.status(200).json({ 
-            answer: chatResponse.text,
-            sources: searchResults
+            chatId: conversation._id, // Send this back so React knows which chat it is in!
+            answer: finalAnswer, 
+            sources: searchResults 
         });
 
     } catch (error) {

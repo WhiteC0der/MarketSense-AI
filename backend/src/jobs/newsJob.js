@@ -1,16 +1,14 @@
 import cron from 'node-cron';
 import axios from 'axios';
 import { GoogleGenerativeAI } from '@google/generative-ai'; // FIXED: Correct class name
-
-// CRITICAL: Replace this path with the actual path to your Mongoose model!
-// import News from '../models/News.js'; 
+import News from '../models/news.model.js'; 
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const startNewsJob = () => {
     // Timer set to run every minute for testing. 
     // Change to '0 2 * * *' (2:00 AM) when you are ready for production.
-    cron.schedule('* * * * *', async () => {
+    cron.schedule('0 2 * * *', async () => {
         console.log("\n⏰ CRON WAKEUP: Starting background market ingestion...");
 
         // 1. Setup the Gemini AI Client with the correct class
@@ -51,31 +49,30 @@ const startNewsJob = () => {
                     // Skip junk articles that don't have a summary
                     if (!article.summary || !article.url) continue;
 
-                    // OPTIONAL: Prevent duplicates (Uncomment if you imported your News model)
-                    // const exists = await News.findOne({ url: article.url });
-                    // if (exists) {
-                    //    console.log(`Skipped: Article already exists in DB`);
-                    //    continue;
-                    // }
+// OPTIONAL: Prevent duplicates
+                          const exists = await News.findOne({ url: article.url });
+                          if (exists) {
+                              console.log(`Skipped: Article already exists in DB`);
+                              continue;
+                          }
 
                     // 4. Generate the Vector Embedding using Google's latest embedding model
                     const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
                     const embedResult = await embeddingModel.embedContent(article.summary);
                     const vectorArray = embedResult.embedding.values;
 
-                    // 5. Save the data to MongoDB Atlas (Uncomment and adjust to match your Schema)
-                    /*
-                    await News.create({
-                        ticker: ticker,
-                        headline: article.headline,
-                        summary: article.summary,
-                        url: article.url,
-                        embedding: vectorArray
-                    });
-                    */
+// 5. Save the data to MongoDB Atlas
+                          await News.create({
+                              ticker: ticker,
+                              headline: article.headline,
+                              summary: article.summary,
+                              url: article.url,
+                              publishedAt: new Date(article.datetime * 1000),
+                              embedding: vectorArray
+                          });
 
-                    processedCount++;
-                    console.log(`✅ ${ticker}: Embedded and saved article ${processedCount}`);
+console.log(`✅ ${ticker}: Embedded and saved article ${processedCount}`);
+                          processedCount++;
 
                     // 6. THE THROTTLE: Protect your Gemini Free Tier Quota
                     if (processedCount % 3 === 0) {

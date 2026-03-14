@@ -74,4 +74,37 @@ router.post('/logout', (req, res) => {
     res.status(200).json({ message: 'Logged out successfully' });
 });
 
+// GET /api/v1/auth/me - Rehydrate session from stored JWT cookie
+router.get('/me', async (req, res) => {
+    try {
+        const token = req.cookies.token;
+        
+        if (!token) {
+            return res.status(401).json({ authenticated: false, error: 'No session found' });
+        }
+
+        try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            const user = await User.findById(decoded.userId).select('email createdAt');
+            
+            if (!user) {
+                return res.status(401).json({ authenticated: false, error: 'User not found' });
+            }
+            
+            res.status(200).json({ 
+                authenticated: true, 
+                user: { 
+                    userId: user._id, 
+                    email: user.email 
+                }
+            });
+        } catch (jwtError) {
+            return res.status(401).json({ authenticated: false, error: 'Invalid or expired token' });
+        }
+    } catch (error) {
+        console.error("Session check error:", error);
+        res.status(500).json({ authenticated: false, error: 'Server error during session check' });
+    }
+});
+
 export default router;
