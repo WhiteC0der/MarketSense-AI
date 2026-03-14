@@ -130,7 +130,10 @@ export const newsAPI = {
 export const stockAPI = {
   search: async (query: string) => {
     const res = await apiCall(`${API_BASE}/stock/search/${encodeURIComponent(query)}`);
-    if (!res.ok) throw new Error("Failed to search ticker");
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      throw new Error(error.error || "No stock match found. Please type a proper company name or exact stock ticker.");
+    }
     return res.json();
   },
 

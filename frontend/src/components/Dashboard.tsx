@@ -166,9 +166,13 @@ export function Dashboard({ onLogout }: DashboardProps) {
           description: `Showing ${symbol} price data. Try SCAN again in a moment for latest news.`,
         });
       }
-    } catch {
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : `No stock match found for \"${raw}\". Please type a proper company name or exact stock ticker.`;
+
       toast("Unable to resolve ticker", {
-        description: `No stock match found for \"${raw}\". Try a company name like Nvidia or a ticker like NVDA.`,
+        description: message,
       });
     } finally {
       setIsScanning(false);

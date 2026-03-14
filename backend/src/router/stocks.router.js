@@ -31,6 +31,7 @@ const scoreQuoteMatch = (quote, rawQuery) => {
 router.get('/search/:query', async (req, res) => {
     try {
         const query = req.params.query.trim();
+
         const result = await yahooFinance.search(query);
         
         if (result.quotes && result.quotes.length > 0) {
@@ -41,7 +42,7 @@ router.get('/search/:query', async (req, res) => {
             const bestMatch = rankedQuotes[0];
             return res.status(200).json({ symbol: bestMatch.symbol });
         } else {
-            return res.status(404).json({ error: "No valid ticker found." });
+            return res.status(404).json({ error: "No stock match found. Please type a proper company name or exact stock ticker." });
         }
     } catch (error) {
         console.error("Search API Error:", error.message);
