@@ -13,6 +13,7 @@ const app = express();
 const defaultAllowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
+  "https://market-sense-ai.vercel.app",
 ];
 
 const envOrigins = (process.env.FRONTEND_URLS || "")
@@ -22,17 +23,20 @@ const envOrigins = (process.env.FRONTEND_URLS || "")
 
 const allowedOrigins = new Set([...defaultAllowedOrigins, ...envOrigins]);
 
-app.use(cors({
-    origin: (origin, callback) => {
-        // Allow non-browser tools (no Origin header) and configured frontend origins.
-        if (!origin || allowedOrigins.has(origin)) {
-            return callback(null, true);
-        }
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow non-browser tools (no Origin header) and configured frontend origins.
+    if (!origin || allowedOrigins.has(origin)) {
+      return callback(null, true);
+    }
 
-        return callback(new Error("Not allowed by CORS"));
-    },
-    credentials: true,
-}));
+    return callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 
 // 3. Tell Express to parse cookies
 app.use(cookieParser());

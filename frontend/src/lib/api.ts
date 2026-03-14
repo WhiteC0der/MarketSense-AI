@@ -1,5 +1,19 @@
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL?.trim() || "http://localhost:3000/api/v1";
+const normalizeApiBase = (rawBase?: string) => {
+  const defaultBase = "http://localhost:3000/api/v1";
+  const trimmed = rawBase?.trim();
+
+  if (!trimmed) return defaultBase;
+
+  const noTrailingSlash = trimmed.replace(/\/+$/, "");
+
+  if (noTrailingSlash.endsWith("/api/v1")) {
+    return noTrailingSlash;
+  }
+
+  return `${noTrailingSlash}/api/v1`;
+};
+
+const API_BASE = normalizeApiBase(import.meta.env.VITE_API_BASE_URL);
 
 export interface SourceItem {
   headline: string;
