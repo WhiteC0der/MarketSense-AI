@@ -8,17 +8,41 @@ const yahooFinance = new YahooFinance({
     suppressNotices: ['yahooSurvey', 'ripHistorical'] 
 });
 
+const normalizeSearchText = (value = '') =>
+    value.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const scoreQuoteMatch = (quote, rawQuery) => {
+    const query = normalizeSearchText(rawQuery);
+    const symbol = normalizeSearchText(quote.symbol || '');
+    const shortName = normalizeSearchText(quote.shortname || '');
+    const longName = normalizeSearchText(quote.longname || '');
+
+    let score = 0;
+
+    if (quote.quoteType === 'EQUITY') score += 50;
+    if (symbol === query) score += 100;
+    if (shortName === query || longName === query) score += 90;
+    if (symbol.startsWith(query)) score += 40;
+    if (shortName.startsWith(query) || longName.startsWith(query)) score += 35;
+    if (shortName.includes(query) || longName.includes(query)) score += 20;
+
+    return score;
+};
+
 // ==========================================
 // 1. MUST BE FIRST: The Translator Route
 // ==========================================
 router.get('/search/:query', async (req, res) => {
     try {
-        const query = req.params.query;
+        const query = req.params.query.trim();
         const result = await yahooFinance.search(query);
         
         if (result.quotes && result.quotes.length > 0) {
-            // Filter out random mutual funds/crypto, prioritize actual company stocks (EQUITY)
-            const bestMatch = result.quotes.find(q => q.quoteType === 'EQUITY') || result.quotes[0];
+            const rankedQuotes = [...result.quotes].sort(
+                (left, right) => scoreQuoteMatch(right, query) - scoreQuoteMatch(left, query)
+            );
+
+            const bestMatch = rankedQuotes[0];
             return res.status(200).json({ symbol: bestMatch.symbol });
         } else {
             return res.status(404).json({ error: "No valid ticker found." });

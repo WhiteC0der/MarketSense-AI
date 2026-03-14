@@ -119,7 +119,7 @@ export const chatAPI = {
 
 export const newsAPI = {
   ingest: async (ticker: string) => {
-    const res = await apiCall(`${API_BASE}/news/ingest/${ticker}`, {
+    const res = await apiCall(`${API_BASE}/news/ingest/${encodeURIComponent(ticker)}`, {
       method: "POST",
     });
     if (!res.ok) throw new Error("Failed to ingest news");
@@ -129,13 +129,13 @@ export const newsAPI = {
 
 export const stockAPI = {
   search: async (query: string) => {
-    const res = await apiCall(`${API_BASE}/stock/search/${query}`);
+    const res = await apiCall(`${API_BASE}/stock/search/${encodeURIComponent(query)}`);
     if (!res.ok) throw new Error("Failed to search ticker");
     return res.json();
   },
 
   getChart: async (ticker: string) => {
-    const res = await apiCall(`${API_BASE}/stock/${ticker}`);
+    const res = await apiCall(`${API_BASE}/stock/${encodeURIComponent(ticker)}`);
     if (!res.ok) throw new Error("Failed to fetch chart data");
     return res.json();
   },

@@ -5,6 +5,7 @@ import { ChatSidebar } from "./ChatSidebar";
 import { StockChart } from "./StockChart";
 import { ChatMessage } from "./ChatMessage";
 import { TypingIndicator } from "./TypingIndicator";
+import { toast } from "@/components/ui/sonner";
 import { chatAPI, ConversationItem, newsAPI, SourceItem, stockAPI } from "@/lib/api";
 
 type UiMessage = {
@@ -158,9 +159,17 @@ export function Dashboard({ onLogout }: DashboardProps) {
       setActiveChatId(null);
       setMessages([buildWelcome(symbol)]);
 
-      await newsAPI.ingest(symbol);
+      try {
+        await newsAPI.ingest(symbol);
+      } catch {
+        toast("Ticker resolved, but news ingestion failed", {
+          description: `Showing ${symbol} price data. Try SCAN again in a moment for latest news.`,
+        });
+      }
     } catch {
-      // keep prior ticker if scan fails
+      toast("Unable to resolve ticker", {
+        description: `No stock match found for \"${raw}\". Try a company name like Nvidia or a ticker like NVDA.`,
+      });
     } finally {
       setIsScanning(false);
     }
