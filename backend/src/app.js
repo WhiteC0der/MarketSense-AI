@@ -10,9 +10,28 @@ import protect from "./middleware/auth.middleware.js";
 
 const app = express();
 
+const defaultAllowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+];
+
+const envOrigins = (process.env.FRONTEND_URLS || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const allowedOrigins = new Set([...defaultAllowedOrigins, ...envOrigins]);
+
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:3000'], // Frontend dev + prod
-    credentials: true 
+    origin: (origin, callback) => {
+        // Allow non-browser tools (no Origin header) and configured frontend origins.
+        if (!origin || allowedOrigins.has(origin)) {
+            return callback(null, true);
+        }
+
+        return callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
 }));
 
 // 3. Tell Express to parse cookies
