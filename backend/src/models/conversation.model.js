@@ -3,14 +3,13 @@ import mongoose from 'mongoose';
 const messageSchema = new mongoose.Schema({
     role: {
         type: String,
-        enum: ['user', 'ai', 'system'], // 'system' will be for rendering the News Cards!
+        enum: ['user', 'ai', 'system'],
         required: true
     },
     content: {
         type: String,
         required: true
     },
-    // We will attach the Finnhub articles here so the UI can render them beautifully
     sources: {
         type: Array, 
         default: []
@@ -24,14 +23,14 @@ const messageSchema = new mongoose.Schema({
 const conversationSchema = new mongoose.Schema({
     userId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User', // Ties this chat to the logged-in user
+        ref: 'User',
         required: true
     },
     title: {
         type: String,
-        default: "New Chat" // We can have the AI auto-generate this later!
+        default: "New Chat"
     },
-    messages: [messageSchema], // An array of the back-and-forth messages
+    messages: [messageSchema],
     createdAt: {
         type: Date,
         default: Date.now

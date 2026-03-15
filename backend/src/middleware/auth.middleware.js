@@ -1,7 +1,6 @@
 import jwt from 'jsonwebtoken';
 
 const protect = (req, res, next) => {
-    // 1. Grab the token securely from the cookie
     const token = req.cookies.token;
 
     if (!token) {
@@ -9,7 +8,6 @@ const protect = (req, res, next) => {
     }
 
     try {
-        // 2. Verify the badge
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         req.user = decoded; 
         next(); 

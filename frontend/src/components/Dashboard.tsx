@@ -142,7 +142,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
       const history = await chatAPI.getHistory();
       setChatHistory(history);
     } catch {
-      // no-op, keep current history
     }
   };
 
@@ -233,12 +232,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
         onLogout={onLogout}
       />
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
         <header className="shrink-0 border-b border-border/30 bg-card/40 backdrop-blur-xl">
           <div className="flex items-center gap-3 px-5 py-3">
-            {/* Search */}
             <div className="relative flex-1 max-w-md">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
               <input
@@ -258,7 +254,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
               {isScanning ? "SCANNING" : "SCAN"}
             </motion.button>
 
-            {/* Live Price Pill */}
             <motion.button
               onClick={() => setShowChart(!showChart)}
               whileHover={{ scale: 1.03 }}
@@ -277,13 +272,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
             </motion.button>
           </div>
 
-          {/* Expandable Chart */}
           <AnimatePresence>
             {showChart && <StockChart ticker={currentTicker} />}
           </AnimatePresence>
         </header>
 
-        {/* Chat Area */}
         <div className="flex-1 overflow-y-auto scrollbar-thin px-5 py-6">
           <div className="max-w-3xl mx-auto">
             {messages.map((msg, i) => (
@@ -302,7 +295,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
           </div>
         </div>
 
-        {/* Input */}
         <div className="shrink-0 border-t border-border/30 bg-card/40 backdrop-blur-xl px-5 py-3">
           <div className="max-w-3xl mx-auto flex gap-2">
             <input

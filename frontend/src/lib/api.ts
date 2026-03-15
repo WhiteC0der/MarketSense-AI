@@ -35,7 +35,6 @@ export interface ConversationItem {
   messages?: ChatMessageItem[];
 }
 
-// Configure axios-like fetch with credentials
 const apiCall = async (
   url: string,
   options: RequestInit = {}

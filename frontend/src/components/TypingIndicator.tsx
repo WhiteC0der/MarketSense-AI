@@ -14,7 +14,7 @@ export function TypingIndicator() {
       </div>
       <div className="flex items-center gap-1.5 pt-2">
         <span className="text-xs font-mono tracking-wider text-muted-foreground/60 mr-2">
-          Analyzing vectors
+          Thinking...
         </span>
         {[0, 1, 2].map((i) => (
           <div

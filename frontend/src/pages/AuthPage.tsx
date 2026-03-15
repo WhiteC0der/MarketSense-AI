@@ -27,7 +27,6 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
         await authAPI.login(email, password);
       } else {
         await authAPI.register(email, password);
-        // After registration, switch to login
         setIsLogin(true);
         setEmail("");
         setPassword("");
@@ -43,14 +42,12 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-background relative overflow-hidden">
-      {/* Glowing orbs */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-primary/8 blur-[120px]" />
         <div className="absolute top-1/3 left-1/3 w-[400px] h-[400px] rounded-full bg-accent/6 blur-[100px]" />
         <div className="absolute bottom-1/3 right-1/3 w-[300px] h-[300px] rounded-full bg-primary/5 blur-[80px]" />
       </div>
 
-      {/* Auth Card */}
       <motion.div
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
@@ -58,7 +55,6 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
         className="relative z-10 w-full max-w-md mx-4"
       >
         <div className="glass-card p-8 md:p-10 border border-border/60" style={{ boxShadow: "0 0 60px hsl(var(--primary) / 0.08), var(--shadow-card)" }}>
-          {/* Logo */}
           <div className="text-center mb-8">
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
@@ -81,7 +77,6 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
             </motion.p>
           </div>
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <motion.div
               initial={{ opacity: 0, x: -20 }}
@@ -202,7 +197,6 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
             )}
           </form>
 
-          {/* Toggle */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -220,7 +214,6 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
             </button>
           </motion.div>
 
-          {/* Footer */}
           <div className="mt-8 pt-4 border-t border-border/30 text-center">
             <p className="text-[10px] font-mono tracking-[0.2em] text-muted-foreground/30 uppercase">
               engineered by whitecoder

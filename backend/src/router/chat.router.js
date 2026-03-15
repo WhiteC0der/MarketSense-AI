@@ -1,7 +1,7 @@
 import express from 'express';
 import { GoogleGenAI } from '@google/genai';
 import News from '../models/news.model.js';
-import Conversation from '../models/conversation.model.js'; // Ensure this path matches your new model!
+import Conversation from '../models/conversation.model.js';
 
 const router = express.Router();
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -24,7 +24,6 @@ const runVectorSearch = async (queryVector, ticker) => {
     };
 
     try {
-        // Preferred path: filter in vector search (requires ticker to be configured as filter field in Atlas index).
         return await News.aggregate([
             {
                 "$vectorSearch": {
@@ -45,8 +44,6 @@ const runVectorSearch = async (queryVector, ticker) => {
             throw error;
         }
 
-        // Fallback path: run without filter, then keep only matching ticker documents.
-        // This keeps chat operational when Atlas index filter mapping is not configured yet.
         const unfilteredResults = await News.aggregate([
             {
                 "$vectorSearch": {
@@ -79,15 +76,11 @@ const getAuthenticatedUserId = (req, res) => {
     return userId;
 };
 
-// ==========================================
-// 1. GET ROUTE: Fetch Chat History for Sidebar
-// ==========================================
 router.get('/history', async (req, res) => {
     try {
         const userId = getAuthenticatedUserId(req, res);
         if (!userId) return;
 
-        // Fetch all chats for this user, sorted by newest first
         const chats = await Conversation.find({ userId })
             .select('_id title updatedAt')
             .sort({ updatedAt: -1 });
@@ -99,9 +92,6 @@ router.get('/history', async (req, res) => {
     }
 });
 
-// ==========================================
-// 2. GET ROUTE: Load a Specific Past Chat
-// ==========================================
 router.get('/:chatId', async (req, res) => {
     try {
         const userId = getAuthenticatedUserId(req, res);
@@ -121,15 +111,11 @@ router.get('/:chatId', async (req, res) => {
     }
 });
 
-// ==========================================
-// 3. POST ROUTE: Main AI & RAG Engine
-// ==========================================
 router.post('/', async (req, res) => {
     try {
         const userId = getAuthenticatedUserId(req, res);
         if (!userId) return;
 
-        // Notice we now extract chatId from the request body!
         const { question, ticker, chatId } = req.body;
         
         if (!question || !ticker) {
@@ -138,21 +124,16 @@ router.post('/', async (req, res) => {
 
         console.log(`User asks: "${question}" for ${ticker}`);
 
-        // A. Generate Vector for the User's Question
         const enrichedQuery = `Financial news and market analysis specifically regarding ${ticker} stock. User question: ${question}`;
         const embedResponse = await ai.models.embedContent({
             model: 'gemini-embedding-001', 
             contents: enrichedQuery,
         });
         
-        // Note: Check if your SDK version returns embedResponse.embeddings[0].values or something slightly different. 
-        // We will keep your syntax here assuming it worked for you!
         const queryVector = embedResponse.embeddings[0].values || embedResponse.embeddings[0]; 
 
-        // B. Vector Search in MongoDB
         const searchResults = await runVectorSearch(queryVector, ticker);
 
-        // C. Build the Context and Prompt
         const contextText = searchResults.length > 0 
             ? searchResults.map(doc => `Headline: ${doc.headline}\nSummary: ${doc.summary}`).join('\n\n')
             : "";
@@ -189,7 +170,6 @@ router.post('/', async (req, res) => {
         </USER_QUESTION>
         `;
 
-        // D. Generate AI Response
         const chatResponse = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: finalPrompt,
@@ -197,24 +177,20 @@ router.post('/', async (req, res) => {
 
         const finalAnswer = chatResponse.text;
 
-        // E. THE MEMORY BANK: Save everything to MongoDB
         let conversation;
         if (chatId) {
             conversation = await Conversation.findOne({ _id: chatId, userId });
         } 
         
-        // If no chatId provided, or if the old chat was deleted, create a new one
         if (!conversation) {
             conversation = new Conversation({ 
                 userId,
-                title: `${ticker.toUpperCase()} - ${question.substring(0, 20)}...` // Auto-generates a cool title!
+                title: `${ticker.toUpperCase()} - ${question.substring(0, 20)}...`
             });
         }
 
-        // Save the User's question
         conversation.messages.push({ role: 'user', content: question });
         
-        // Save the News Sources (so React can render the UI cards)
         if (searchResults.length > 0) {
             conversation.messages.push({ 
                 role: 'system', 
@@ -223,15 +199,13 @@ router.post('/', async (req, res) => {
             });
         }
 
-        // Save the AI's answer
         conversation.messages.push({ role: 'ai', content: finalAnswer });
         conversation.updatedAt = Date.now();
         
         await conversation.save();
 
-        // F. Send response back to frontend
         res.status(200).json({ 
-            chatId: conversation._id, // Send this back so React knows which chat it is in!
+            chatId: conversation._id,
             answer: finalAnswer, 
             sources: searchResults 
         });

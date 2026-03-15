@@ -1,4 +1,3 @@
-// backend/routes/authRoutes.js
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -11,26 +10,21 @@ const isProduction = process.env.NODE_ENV === 'production';
 const getCookieOptions = (expiresInMs = 7 * 24 * 60 * 60 * 1000) => ({
     httpOnly: true,
     secure: isProduction,
-    // Cross-site frontend/backend (e.g. Vercel + Render) requires SameSite=None with secure cookies.
     sameSite: isProduction ? 'none' : 'lax',
     maxAge: expiresInMs,
     path: '/',
 });
 
-// POST /api/auth/register
 router.post('/register', async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        // 1. Check if user already exists
         const existingUser = await User.findOne({ email });
         if (existingUser) return res.status(400).json({ error: 'Email already in use.' });
 
-        // 2. Hash the password mathematically so it is unreadable in MongoDB
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // 3. Save the new user
         const newUser = new User({ email, password: hashedPassword });
         await newUser.save();
 
@@ -41,29 +35,24 @@ router.post('/register', async (req, res) => {
     }
 });
 
-// POST /api/auth/login
 router.post('/login', async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        // 1. Find the user
         const user = await User.findOne({ email });
         if (!user) return res.status(400).json({ error: 'Invalid credentials.' });
 
-        // 2. Compare the typed password with the hashed password in the DB
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ error: 'Invalid credentials.' });
 
-        // 3. Generate the JWT Badge
         const token = jwt.sign(
             { userId: user._id }, 
             process.env.JWT_SECRET, 
-            { expiresIn: '7d' } // Token lasts for 7 days before they must log in again
+            { expiresIn: '7d' }
         );
 
         res.cookie('token', token, getCookieOptions());
 
-        // Notice we don't send the token back in the JSON anymore!
         res.status(200).json({ email: user.email, message: 'Logged in successfully' });
     } catch (error) {
         console.error("Login Error:", error);
@@ -72,7 +61,6 @@ router.post('/login', async (req, res) => {
 });
 
 router.post('/logout', (req, res) => {
-    // Overwrite the cookie with a blank one that expires instantly
     res.cookie('token', '', {
         ...getCookieOptions(0),
         maxAge: 0,
@@ -81,7 +69,6 @@ router.post('/logout', (req, res) => {
     res.status(200).json({ message: 'Logged out successfully' });
 });
 
-// GET /api/v1/auth/me - Rehydrate session from stored JWT cookie
 router.get('/me', async (req, res) => {
     try {
         const token = req.cookies.token;

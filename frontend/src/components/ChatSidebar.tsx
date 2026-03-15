@@ -41,7 +41,6 @@ export function ChatSidebar({
       transition={{ duration: 0.3, ease: "easeInOut" }}
       className="h-screen bg-terminal-950 border-r border-border/50 flex flex-col relative shrink-0 overflow-visible"
     >
-      {/* Toggle Button */}
       <button
         onClick={onToggle}
         className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-terminal-800 border border-border/50 flex items-center justify-center hover:bg-primary/20 transition-colors"
@@ -49,7 +48,6 @@ export function ChatSidebar({
         {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
       </button>
 
-      {/* New Scan Button */}
       <div className="p-3">
         <motion.button
           onClick={onNewChat}
@@ -73,7 +71,6 @@ export function ChatSidebar({
         </motion.button>
       </div>
 
-      {/* Chat History */}
       <div className="flex-1 overflow-y-auto scrollbar-thin px-2 py-1">
         <AnimatePresence>
           {!collapsed && (
@@ -117,7 +114,6 @@ export function ChatSidebar({
         </AnimatePresence>
       </div>
 
-      {/* Bottom Watermark / Profile */}
       <div className="p-3 border-t border-border/30">
         <AnimatePresence>
           {!collapsed ? (
