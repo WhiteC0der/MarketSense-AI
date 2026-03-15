@@ -168,6 +168,7 @@ npm run dev
 | `MONGODB_NAME` | Database name (e.g. `marketsense`) |
 | `PORT` | Server port (default `3000`) |
 | `GEMINI_API_KEY` | Google Gemini API key |
+| `OPENROUTER_API_KEY` | Optional fallback key for DeepSeek/Llama via OpenRouter |
 | `FINNHUB_API_KEY` | Finnhub financial news API key |
 | `JWT_SECRET` | Secret string for signing JWT tokens |
 | `FRONTEND_URLS` | Comma-separated allowed frontend origins |

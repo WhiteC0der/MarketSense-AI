@@ -5,6 +5,7 @@ import Conversation from '../models/conversation.model.js';
 
 const router = express.Router();
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 const isTickerFilterIndexError = (error) => {
     const message = String(error?.message || "");
@@ -74,6 +75,83 @@ const getAuthenticatedUserId = (req, res) => {
         return null;
     }
     return userId;
+};
+
+const extractOpenRouterText = (payload) => {
+    const content = payload?.choices?.[0]?.message?.content;
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+        return content
+            .map((part) => (typeof part?.text === 'string' ? part.text : ''))
+            .join('')
+            .trim();
+    }
+    return '';
+};
+
+const callOpenRouterModel = async (model, prompt) => {
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) {
+        throw new Error('OPENROUTER_API_KEY is missing.');
+    }
+
+    const response = await fetch(OPENROUTER_API_URL, {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            model,
+            messages: [{ role: 'user', content: prompt }],
+        }),
+    });
+
+    if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`OpenRouter ${model} failed: ${response.status} ${errText}`);
+    }
+
+    const payload = await response.json();
+    const text = extractOpenRouterText(payload);
+
+    if (!text) {
+        throw new Error(`OpenRouter ${model} returned an empty response.`);
+    }
+
+    return text;
+};
+
+const generateAIWithFallback = async (prompt) => {
+    try {
+        const primary = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+        });
+
+        return {
+            modelUsed: 'gemini-2.5-flash',
+            text: primary.text,
+        };
+    } catch (geminiError) {
+        console.warn('Gemini failed, trying DeepSeek fallback:', geminiError.message);
+
+        try {
+            const deepSeekText = await callOpenRouterModel('deepseek/deepseek-chat', prompt);
+            return {
+                modelUsed: 'deepseek/deepseek-chat',
+                text: deepSeekText,
+            };
+        } catch (deepSeekError) {
+            console.warn('DeepSeek failed, trying Llama fallback:', deepSeekError.message);
+
+            const llamaText = await callOpenRouterModel('meta-llama/llama-3-70b-instruct', prompt);
+            return {
+                modelUsed: 'meta-llama/llama-3-70b-instruct',
+                text: llamaText,
+            };
+        }
+    }
 };
 
 router.get('/history', async (req, res) => {
@@ -170,12 +248,9 @@ router.post('/', async (req, res) => {
         </USER_QUESTION>
         `;
 
-        const chatResponse = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: finalPrompt,
-        });
-
-        const finalAnswer = chatResponse.text;
+        const generation = await generateAIWithFallback(finalPrompt);
+        const finalAnswer = generation.text;
+        console.log(`AI response model: ${generation.modelUsed}`);
 
         let conversation;
         if (chatId) {
