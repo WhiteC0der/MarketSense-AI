@@ -10,6 +10,15 @@
 
 A real-time stock market intelligence app powered by Google Gemini AI, RAG (Retrieval-Augmented Generation), and MongoDB Atlas Vector Search. Ask natural language questions about any stock and get AI answers grounded in live financial news.
 
+---
+
+## Live Demo
+
+| | Link |
+|---|---|
+| Frontend | [https://market-sense-ai.vercel.app](https://market-sense-ai.vercel.app) |
+| Backend API | [https://marketsense-ai.onrender.com](https://marketsense-ai.onrender.com) |
+
 </div>
 
 ---
@@ -23,8 +32,6 @@ A real-time stock market intelligence app powered by Google Gemini AI, RAG (Retr
 - **News Ingestion** — Fetch and embed financial news for any ticker on demand
 - **Chat History** — Persistent conversation history per user, saved to MongoDB
 - **Auth System** — Secure JWT-based login/register with HttpOnly cookie sessions
-- **Automated News Job** — Daily cron job ingests news for tracked tickers at 2 AM
-
 ---
 
 ## Tech Stack
@@ -69,7 +76,7 @@ MarketSense AI/
 ├── backend/                     # Express API
 │   ├── src/
 │   │   ├── app.js               # Express app, CORS, rate limiting
-│   │   ├── server.js            # Entry point, DB connect, cron start
+│   │   ├── server.js            # Entry point, DB connect
 │   │   ├── constants.js         # DB name constant
 │   │   ├── db/
 │   │   │   └── index.js         # MongoDB connection
@@ -86,8 +93,6 @@ MarketSense AI/
 │   │   │   └── stocks.router.js # Live price + chart data
 │   │   ├── services/
 │   │   │   └── aiService.js     # Gemini embedding + save
-│   │   └── jobs/
-│   │       └── newsJob.js       # Daily cron ingestion
 │   ├── .env.example
 │   └── package.json
 │
