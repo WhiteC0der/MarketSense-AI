@@ -191,7 +191,7 @@ router.post('/', async (req, res) => {
 
         // D. Generate AI Response
         const chatResponse = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-lite',
+            model: 'gemini-2.5-flash',
             contents: finalPrompt,
         });
 

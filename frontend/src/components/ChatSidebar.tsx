@@ -39,12 +39,12 @@ export function ChatSidebar({
     <motion.aside
       animate={{ width: collapsed ? 56 : 280 }}
       transition={{ duration: 0.3, ease: "easeInOut" }}
-      className="h-screen bg-terminal-950 border-r border-border/50 flex flex-col relative shrink-0 overflow-hidden"
+      className="h-screen bg-terminal-950 border-r border-border/50 flex flex-col relative shrink-0 overflow-visible"
     >
       {/* Toggle Button */}
       <button
         onClick={onToggle}
-        className="absolute -right-3 top-6 z-10 w-6 h-6 rounded-full bg-terminal-800 border border-border/50 flex items-center justify-center hover:bg-primary/20 transition-colors"
+        className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-terminal-800 border border-border/50 flex items-center justify-center hover:bg-primary/20 transition-colors"
       >
         {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
       </button>
