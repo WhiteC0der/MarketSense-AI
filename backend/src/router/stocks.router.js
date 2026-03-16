@@ -1,5 +1,6 @@
 import express from 'express';
 import YahooFinance from 'yahoo-finance2';
+import axios from 'axios';
 import RequestQueue from '../utils/requestQueue.js';
 
 const router = express.Router();
@@ -8,8 +9,137 @@ const yahooFinance = new YahooFinance({
     suppressNotices: ['yahooSurvey', 'ripHistorical'] 
 });
 
+const yahooPublicApi = axios.create({
+    baseURL: 'https://query1.finance.yahoo.com',
+    timeout: 12000,
+    headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json,text/plain,*/*'
+    }
+});
+
 // Queue with 1500ms delay between requests to avoid Yahoo Finance rate limiting
 const apiQueue = new RequestQueue(1500);
+
+const cacheStore = new Map();
+const SEARCH_CACHE_TTL_MS = Number(process.env.STOCK_SEARCH_CACHE_TTL_MS || 10 * 60 * 1000);
+const QUOTE_CACHE_TTL_MS = Number(process.env.STOCK_QUOTE_CACHE_TTL_MS || 60 * 1000);
+const CHART_CACHE_TTL_MS = Number(process.env.STOCK_CHART_CACHE_TTL_MS || 10 * 60 * 1000);
+const publicEndpointsOnlyEnv = process.env.YAHOO_PUBLIC_ENDPOINTS_ONLY;
+const USE_PUBLIC_YAHOO_ENDPOINTS_ONLY =
+    typeof publicEndpointsOnlyEnv === 'string'
+        ? publicEndpointsOnlyEnv === 'true'
+        : process.env.NODE_ENV === 'production';
+
+const getCachedValue = (key) => {
+    const found = cacheStore.get(key);
+
+    if (!found) return null;
+    if (found.expiresAt <= Date.now()) {
+        cacheStore.delete(key);
+        return null;
+    }
+
+    return found.value;
+};
+
+const setCachedValue = (key, value, ttlMs) => {
+    cacheStore.set(key, {
+        value,
+        expiresAt: Date.now() + ttlMs
+    });
+};
+
+const isRateLimitError = (error) => {
+    const message = String(error?.message || '').toLowerCase();
+    const status = error?.response?.status || error?.status || error?.statusCode;
+
+    return status === 429 || message.includes('too many requests') || message.includes('failed to get crumb');
+};
+
+const getWithFallback = async ({ cacheKey, ttlMs, primaryFn, fallbackFn }) => {
+    const cached = getCachedValue(cacheKey);
+    if (cached) return cached;
+
+    let result;
+
+    if (USE_PUBLIC_YAHOO_ENDPOINTS_ONLY) {
+        result = await fallbackFn();
+    } else {
+        try {
+            result = await primaryFn();
+        } catch (error) {
+            if (!isRateLimitError(error)) throw error;
+
+            console.warn('Primary Yahoo client was rate-limited. Falling back to public endpoint.', {
+                cacheKey,
+                status: error?.response?.status || error?.status || error?.statusCode,
+                message: error?.message
+            });
+
+            result = await fallbackFn();
+        }
+    }
+
+    setCachedValue(cacheKey, result, ttlMs);
+    return result;
+};
+
+const searchFromPublicEndpoint = async (query) => {
+    const { data } = await yahooPublicApi.get('/v1/finance/search', {
+        params: {
+            q: query,
+            quotesCount: 25,
+            newsCount: 0
+        }
+    });
+
+    return { quotes: Array.isArray(data?.quotes) ? data.quotes : [] };
+};
+
+const quoteFromPublicEndpoint = async (ticker) => {
+    const { data } = await yahooPublicApi.get('/v7/finance/quote', {
+        params: { symbols: ticker }
+    });
+
+    const quote = data?.quoteResponse?.result?.[0];
+    if (!quote) {
+        throw new Error(`No quote data found for ${ticker}`);
+    }
+
+    return {
+        regularMarketPrice: quote.regularMarketPrice
+    };
+};
+
+const chartFromPublicEndpoint = async (ticker) => {
+    const { data } = await yahooPublicApi.get(`/v8/finance/chart/${ticker}`, {
+        params: {
+            interval: '1d',
+            range: '1mo',
+            includePrePost: false,
+            events: 'div,splits'
+        }
+    });
+
+    const result = data?.chart?.result?.[0];
+    const timestamps = result?.timestamp || [];
+    const closes = result?.indicators?.quote?.[0]?.close || [];
+
+    const quotes = timestamps
+        .map((timestamp, index) => {
+            const close = closes[index];
+            if (typeof close !== 'number' || Number.isNaN(close)) return null;
+
+            return {
+                date: new Date(timestamp * 1000),
+                close
+            };
+        })
+        .filter(Boolean);
+
+    return { quotes };
+};
 
 const normalizeSearchText = (value = '') =>
     value.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -49,7 +179,12 @@ router.get('/search/:query', async (req, res) => {
     try {
         const query = req.params.query.trim();
 
-        const result = await apiQueue.add(() => yahooFinance.search(query));
+        const result = await getWithFallback({
+            cacheKey: `search:${query.toLowerCase()}`,
+            ttlMs: SEARCH_CACHE_TTL_MS,
+            primaryFn: () => apiQueue.add(() => yahooFinance.search(query)),
+            fallbackFn: () => apiQueue.add(() => searchFromPublicEndpoint(query))
+        });
         
         if (result.quotes && result.quotes.length > 0) {
             const equityQuotes = result.quotes.filter((quote) => quote.quoteType === 'EQUITY');
@@ -89,23 +224,35 @@ router.get('/:ticker', async (req, res) => {
     try {
         const ticker = req.params.ticker.toUpperCase();
 
-        const quote = await apiQueue.add(() => yahooFinance.quote(ticker));
+        const quote = await getWithFallback({
+            cacheKey: `quote:${ticker}`,
+            ttlMs: QUOTE_CACHE_TTL_MS,
+            primaryFn: () => apiQueue.add(() => yahooFinance.quote(ticker)),
+            fallbackFn: () => apiQueue.add(() => quoteFromPublicEndpoint(ticker))
+        });
         const currentPrice = quote.regularMarketPrice;
 
-        const today = new Date();
-        const thirtyDaysAgo = new Date(today);
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        
-        const period1 = thirtyDaysAgo.toISOString().split('T')[0];
-        const period2 = today.toISOString().split('T')[0]; 
+        const chartResult = await getWithFallback({
+            cacheKey: `chart:${ticker}`,
+            ttlMs: CHART_CACHE_TTL_MS,
+            primaryFn: () => {
+                const today = new Date();
+                const thirtyDaysAgo = new Date(today);
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-        const chartResult = await apiQueue.add(() => 
-            yahooFinance.chart(ticker, {
-                period1: period1,
-                period2: period2, 
-                interval: '1d' 
-            })
-        );
+                const period1 = thirtyDaysAgo.toISOString().split('T')[0];
+                const period2 = today.toISOString().split('T')[0];
+
+                return apiQueue.add(() =>
+                    yahooFinance.chart(ticker, {
+                        period1,
+                        period2,
+                        interval: '1d'
+                    })
+                );
+            },
+            fallbackFn: () => apiQueue.add(() => chartFromPublicEndpoint(ticker))
+        });
 
         if (!chartResult || !chartResult.quotes || chartResult.quotes.length === 0) {
             return res.status(404).json({ error: "No chart data found." });
