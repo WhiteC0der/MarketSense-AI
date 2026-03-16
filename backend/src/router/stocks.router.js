@@ -1,11 +1,15 @@
 import express from 'express';
 import YahooFinance from 'yahoo-finance2';
+import RequestQueue from '../utils/requestQueue.js';
 
 const router = express.Router();
 
 const yahooFinance = new YahooFinance({
     suppressNotices: ['yahooSurvey', 'ripHistorical'] 
 });
+
+// Queue with 800ms delay between requests to avoid Yahoo Finance rate limiting
+const apiQueue = new RequestQueue(800);
 
 const normalizeSearchText = (value = '') =>
     value.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -45,7 +49,7 @@ router.get('/search/:query', async (req, res) => {
     try {
         const query = req.params.query.trim();
 
-        const result = await yahooFinance.search(query);
+        const result = await apiQueue.add(() => yahooFinance.search(query));
         
         if (result.quotes && result.quotes.length > 0) {
             const equityQuotes = result.quotes.filter((quote) => quote.quoteType === 'EQUITY');
@@ -85,7 +89,7 @@ router.get('/:ticker', async (req, res) => {
     try {
         const ticker = req.params.ticker.toUpperCase();
 
-        const quote = await yahooFinance.quote(ticker);
+        const quote = await apiQueue.add(() => yahooFinance.quote(ticker));
         const currentPrice = quote.regularMarketPrice;
 
         const today = new Date();
@@ -95,11 +99,13 @@ router.get('/:ticker', async (req, res) => {
         const period1 = thirtyDaysAgo.toISOString().split('T')[0];
         const period2 = today.toISOString().split('T')[0]; 
 
-        const chartResult = await yahooFinance.chart(ticker, {
-            period1: period1,
-            period2: period2, 
-            interval: '1d' 
-        });
+        const chartResult = await apiQueue.add(() => 
+            yahooFinance.chart(ticker, {
+                period1: period1,
+                period2: period2, 
+                interval: '1d' 
+            })
+        );
 
         if (!chartResult || !chartResult.quotes || chartResult.quotes.length === 0) {
             return res.status(404).json({ error: "No chart data found." });
