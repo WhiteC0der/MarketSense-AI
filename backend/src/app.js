@@ -37,6 +37,9 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.options(/.*/, cors(corsOptions));
 
+// Trust proxy for rate limiting on Render/production deployments
+app.set('trust proxy', 1);
+
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
