@@ -35,6 +35,10 @@ const cacheStore = new Map();
 const SEARCH_CACHE_TTL_MS = Number(process.env.STOCK_SEARCH_CACHE_TTL_MS || 10 * 60 * 1000);
 const QUOTE_CACHE_TTL_MS = Number(process.env.STOCK_QUOTE_CACHE_TTL_MS || 60 * 1000);
 const CHART_CACHE_TTL_MS = Number(process.env.STOCK_CHART_CACHE_TTL_MS || 10 * 60 * 1000);
+const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
+const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
+const USE_FINNHUB_FALLBACK =
+    process.env.STOCK_USE_FINNHUB_FALLBACK === 'false' ? false : Boolean(FINNHUB_API_KEY);
 const publicEndpointsOnlyEnv = process.env.YAHOO_PUBLIC_ENDPOINTS_ONLY;
 const USE_PUBLIC_YAHOO_ENDPOINTS_ONLY =
     typeof publicEndpointsOnlyEnv === 'string'
@@ -82,14 +86,38 @@ const requestYahooPublic = async (path, params) => {
     }
 };
 
-const getWithFallback = async ({ cacheKey, ttlMs, primaryFn, fallbackFn }) => {
+const requestFinnhub = async (path, params = {}) => {
+    const { data } = await axios.get(`${FINNHUB_BASE_URL}${path}`, {
+        timeout: 12000,
+        params: {
+            ...params,
+            token: FINNHUB_API_KEY
+        }
+    });
+
+    return data;
+};
+
+const getWithFallback = async ({ cacheKey, ttlMs, primaryFn, fallbackFn, secondaryFn }) => {
     const cached = getCachedValue(cacheKey);
     if (cached) return cached;
 
     let result;
 
     if (USE_PUBLIC_YAHOO_ENDPOINTS_ONLY) {
-        result = await fallbackFn();
+        try {
+            result = await fallbackFn();
+        } catch (error) {
+            if (!secondaryFn || !isPublicAccessBlockedError(error)) throw error;
+
+            console.warn('Yahoo public endpoint blocked. Falling back to Finnhub.', {
+                cacheKey,
+                status: error?.response?.status || error?.status || error?.statusCode,
+                message: error?.message
+            });
+
+            result = await secondaryFn();
+        }
     } else {
         try {
             result = await primaryFn();
@@ -102,7 +130,19 @@ const getWithFallback = async ({ cacheKey, ttlMs, primaryFn, fallbackFn }) => {
                 message: error?.message
             });
 
-            result = await fallbackFn();
+            try {
+                result = await fallbackFn();
+            } catch (fallbackError) {
+                if (!secondaryFn || !isPublicAccessBlockedError(fallbackError)) throw fallbackError;
+
+                console.warn('Yahoo public endpoint blocked after primary fallback. Falling back to Finnhub.', {
+                    cacheKey,
+                    status: fallbackError?.response?.status || fallbackError?.status || fallbackError?.statusCode,
+                    message: fallbackError?.message
+                });
+
+                result = await secondaryFn();
+            }
         }
     }
 
@@ -120,6 +160,23 @@ const searchFromPublicEndpoint = async (query) => {
     return { quotes: Array.isArray(data?.quotes) ? data.quotes : [] };
 };
 
+const searchFromFinnhub = async (query) => {
+    const data = await requestFinnhub('/search', { q: query });
+    const resultList = Array.isArray(data?.result) ? data.result : [];
+
+    return {
+        quotes: resultList
+            .filter((item) => typeof item?.symbol === 'string' && item.symbol.trim().length > 0)
+            .map((item) => ({
+                symbol: item.symbol,
+                shortname: item.description || item.symbol,
+                longname: item.description || item.symbol,
+                quoteType: 'EQUITY',
+                exchange: item.exchange || ''
+            }))
+    };
+};
+
 const quoteFromPublicEndpoint = async (ticker) => {
     const { data } = await requestYahooPublic('/v7/finance/quote', {
         symbols: ticker
@@ -132,6 +189,19 @@ const quoteFromPublicEndpoint = async (ticker) => {
 
     return {
         regularMarketPrice: quote.regularMarketPrice
+    };
+};
+
+const quoteFromFinnhub = async (ticker) => {
+    const data = await requestFinnhub('/quote', { symbol: ticker });
+    const marketPrice = Number(data?.c);
+
+    if (!Number.isFinite(marketPrice) || marketPrice <= 0) {
+        throw new Error(`No quote data found for ${ticker} from Finnhub`);
+    }
+
+    return {
+        regularMarketPrice: marketPrice
     };
 };
 
@@ -151,6 +221,36 @@ const chartFromPublicEndpoint = async (ticker) => {
         .map((timestamp, index) => {
             const close = closes[index];
             if (typeof close !== 'number' || Number.isNaN(close)) return null;
+
+            return {
+                date: new Date(timestamp * 1000),
+                close
+            };
+        })
+        .filter(Boolean);
+
+    return { quotes };
+};
+
+const chartFromFinnhub = async (ticker) => {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const fromSeconds = nowSeconds - 30 * 24 * 60 * 60;
+
+    const data = await requestFinnhub('/stock/candle', {
+        symbol: ticker,
+        resolution: 'D',
+        from: fromSeconds,
+        to: nowSeconds
+    });
+
+    if (data?.s !== 'ok' || !Array.isArray(data?.t) || !Array.isArray(data?.c)) {
+        throw new Error(`No chart data found for ${ticker} from Finnhub`);
+    }
+
+    const quotes = data.t
+        .map((timestamp, index) => {
+            const close = Number(data.c[index]);
+            if (!Number.isFinite(close) || close <= 0) return null;
 
             return {
                 date: new Date(timestamp * 1000),
@@ -204,7 +304,8 @@ router.get('/search/:query', async (req, res) => {
             cacheKey: `search:${query.toLowerCase()}`,
             ttlMs: SEARCH_CACHE_TTL_MS,
             primaryFn: () => apiQueue.add(() => yahooFinance.search(query)),
-            fallbackFn: () => apiQueue.add(() => searchFromPublicEndpoint(query))
+            fallbackFn: () => apiQueue.add(() => searchFromPublicEndpoint(query)),
+            secondaryFn: USE_FINNHUB_FALLBACK ? () => apiQueue.add(() => searchFromFinnhub(query)) : undefined
         });
         
         if (result.quotes && result.quotes.length > 0) {
@@ -249,7 +350,8 @@ router.get('/:ticker', async (req, res) => {
             cacheKey: `quote:${ticker}`,
             ttlMs: QUOTE_CACHE_TTL_MS,
             primaryFn: () => apiQueue.add(() => yahooFinance.quote(ticker)),
-            fallbackFn: () => apiQueue.add(() => quoteFromPublicEndpoint(ticker))
+            fallbackFn: () => apiQueue.add(() => quoteFromPublicEndpoint(ticker)),
+            secondaryFn: USE_FINNHUB_FALLBACK ? () => apiQueue.add(() => quoteFromFinnhub(ticker)) : undefined
         });
         const currentPrice = quote.regularMarketPrice;
 
@@ -272,7 +374,8 @@ router.get('/:ticker', async (req, res) => {
                     })
                 );
             },
-            fallbackFn: () => apiQueue.add(() => chartFromPublicEndpoint(ticker))
+            fallbackFn: () => apiQueue.add(() => chartFromPublicEndpoint(ticker)),
+            secondaryFn: USE_FINNHUB_FALLBACK ? () => apiQueue.add(() => chartFromFinnhub(ticker)) : undefined
         });
 
         if (!chartResult || !chartResult.quotes || chartResult.quotes.length === 0) {
