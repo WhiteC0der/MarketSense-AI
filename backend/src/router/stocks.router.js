@@ -9,13 +9,23 @@ const yahooFinance = new YahooFinance({
     suppressNotices: ['yahooSurvey', 'ripHistorical'] 
 });
 
+const YAHOO_PUBLIC_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    'Accept': 'application/json,text/plain,*/*',
+    'Origin': 'https://finance.yahoo.com',
+    'Referer': 'https://finance.yahoo.com/'
+};
+
 const yahooPublicApi = axios.create({
     baseURL: 'https://query1.finance.yahoo.com',
     timeout: 12000,
-    headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json,text/plain,*/*'
-    }
+    headers: YAHOO_PUBLIC_HEADERS
+});
+
+const yahooPublicApiBackup = axios.create({
+    baseURL: 'https://query2.finance.yahoo.com',
+    timeout: 12000,
+    headers: YAHOO_PUBLIC_HEADERS
 });
 
 // Queue with 1500ms delay between requests to avoid Yahoo Finance rate limiting
@@ -57,6 +67,21 @@ const isRateLimitError = (error) => {
     return status === 429 || message.includes('too many requests') || message.includes('failed to get crumb');
 };
 
+const isPublicAccessBlockedError = (error) => {
+    const status = error?.response?.status || error?.status || error?.statusCode;
+    return status === 401 || status === 403 || status === 429;
+};
+
+const requestYahooPublic = async (path, params) => {
+    try {
+        return await yahooPublicApi.get(path, { params });
+    } catch (error) {
+        if (!isPublicAccessBlockedError(error)) throw error;
+
+        return yahooPublicApiBackup.get(path, { params });
+    }
+};
+
 const getWithFallback = async ({ cacheKey, ttlMs, primaryFn, fallbackFn }) => {
     const cached = getCachedValue(cacheKey);
     if (cached) return cached;
@@ -86,20 +111,18 @@ const getWithFallback = async ({ cacheKey, ttlMs, primaryFn, fallbackFn }) => {
 };
 
 const searchFromPublicEndpoint = async (query) => {
-    const { data } = await yahooPublicApi.get('/v1/finance/search', {
-        params: {
-            q: query,
-            quotesCount: 25,
-            newsCount: 0
-        }
+    const { data } = await requestYahooPublic('/v1/finance/search', {
+        q: query,
+        quotesCount: 25,
+        newsCount: 0
     });
 
     return { quotes: Array.isArray(data?.quotes) ? data.quotes : [] };
 };
 
 const quoteFromPublicEndpoint = async (ticker) => {
-    const { data } = await yahooPublicApi.get('/v7/finance/quote', {
-        params: { symbols: ticker }
+    const { data } = await requestYahooPublic('/v7/finance/quote', {
+        symbols: ticker
     });
 
     const quote = data?.quoteResponse?.result?.[0];
@@ -113,13 +136,11 @@ const quoteFromPublicEndpoint = async (ticker) => {
 };
 
 const chartFromPublicEndpoint = async (ticker) => {
-    const { data } = await yahooPublicApi.get(`/v8/finance/chart/${ticker}`, {
-        params: {
-            interval: '1d',
-            range: '1mo',
-            includePrePost: false,
-            events: 'div,splits'
-        }
+    const { data } = await requestYahooPublic(`/v8/finance/chart/${ticker}`, {
+        interval: '1d',
+        range: '1mo',
+        includePrePost: false,
+        events: 'div,splits'
     });
 
     const result = data?.chart?.result?.[0];
