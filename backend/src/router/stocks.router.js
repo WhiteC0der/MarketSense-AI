@@ -8,8 +8,8 @@ const yahooFinance = new YahooFinance({
     suppressNotices: ['yahooSurvey', 'ripHistorical'] 
 });
 
-// Queue with 800ms delay between requests to avoid Yahoo Finance rate limiting
-const apiQueue = new RequestQueue(800);
+// Queue with 1500ms delay between requests to avoid Yahoo Finance rate limiting
+const apiQueue = new RequestQueue(1500);
 
 const normalizeSearchText = (value = '') =>
     value.toLowerCase().replace(/[^a-z0-9]/g, '');
