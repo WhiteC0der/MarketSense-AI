@@ -16,8 +16,7 @@ A real-time stock market intelligence app powered by Google Gemini AI, RAG (Retr
 
 | | Link |
 |---|---|
-| Frontend | [https://market-sense-ai.vercel.app](https://market-sense-ai.vercel.app) |
-| Backend API | [https://marketsense-ai.onrender.com](https://marketsense-ai.onrender.com) |
+| Depolyment | [https://market-sense-ai.vercel.app](https://market-sense-ai.vercel.app) |
 
 </div>
 
