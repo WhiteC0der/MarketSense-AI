@@ -5,12 +5,15 @@ import User from '../models/user.model.js';
 
 const router = express.Router();
 
-const isProduction = process.env.NODE_ENV === 'production';
+// Detect if running in production (Render, NODE_ENV, or by checking hostname)
+const isProduction = process.env.NODE_ENV === 'production' || 
+                    process.env.RENDER === 'true' || 
+                    (process.env.PAPERSPACE || process.env.RENDER_EXTERNAL_HOSTNAME ? true : false);
 
 const getCookieOptions = (expiresInMs = 7 * 24 * 60 * 60 * 1000) => ({
     httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax',
+    secure: true, // Always secure for production API calls
+    sameSite: 'none',
     maxAge: expiresInMs,
     path: '/',
 });

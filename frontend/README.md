@@ -1,53 +1,112 @@
 # MarketSense AI - Frontend
 
-A modern, responsive financial intelligence terminal built with **Next.js 16**, **React 19**, and **TypeScript**. Real-time stock analysis, AI-powered market insights, and intelligent trading signals.
+A modern, high-performance financial intelligence terminal built with **Next.js 16** and **TypeScript**. Real-time stock analysis with AI-powered insights.
 
-**Status**: ✅ Production Ready | All Features Tested | Zero Build Errors
+**Live Demo**: https://market-sense-ai.vercel.app
 
-## 🚀 Features
+---
 
-- **Real-time Stock Charts**: Dynamic 30-day price charts with interactive tooltips (without live price box overlay)
-- **Live Price Updates**: 15-second polling for current stock prices in header
-- **AI Chat Interface**: Market analysis powered by Google Gemini AI
-- **News Integration**: RAG-based source attribution for market news
-- **Chat History**: Persistent conversation storage with sidebar navigation
-- **Dynamic Ticker Search**: Auto-complete with symbol validation (auto-uppercase)
-- **Responsive UI**: Mobile-first design with Tailwind CSS v4
-- **Smooth Animations**: Framer Motion for delightful interactions
-- **Comprehensive Auth**: Login/register with password confirmation and detailed validation
-- **Error Handling**: User-friendly error messages with HTTP status logging
+## ✨ Features
 
-## 📋 Tech Stack
+- **Real-Time Stock Charts** — Interactive 30-day price charts with live data
+- **AI Chat Interface** — Ask questions about stocks, get intelligent answers powered by Google Gemini AI
+- **Smart Ticker Search** — Auto-complete with symbol validation
+- **Chat History** — Persistent conversation storage with sidebar navigation
+- **Responsive Design** — Mobile-first UI with Tailwind CSS
+- **Secure Authentication** — Login/register with JWT + HttpOnly cookies
+- **Professional UI Components** — Built with shadcn/ui and Lucide icons
 
-- **Framework**: Next.js 16.2.0 with Turbopack
-- **Language**: TypeScript & JSX
-- **Styling**: Tailwind CSS v4
-- **Components**: Recharts (charts), Sonner (toasts), Lucide Icons
-- **State Management**: React Hooks (useState, useEffect, useContext)
-- **Animations**: Framer Motion
-- **HTTP Client**: Fetch API with custom wrapper
-- **Authentication**: httpOnly cookies + JWT
+---
 
-## 🛠️ Development Setup
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Framework** | Next.js 16.2.0 with Turbopack |
+| **Language** | TypeScript & JSX |
+| **Styling** | Tailwind CSS v4 |
+| **UI Components** | shadcn/ui, Recharts, Sonner |
+| **State** | React Hooks, Context API |
+| **HTTP** | Fetch API with custom wrapper |
+| **Auth** | JWT + HttpOnly Cookies |
+
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
 - Node.js 18+ or Bun
-- npm, yarn, or pnpm
+- npm, pnpm, or yarn
 
 ### Installation
 
 ```bash
-# Clone the repository
-cd MarketSense\ AI/front_new
-
-# Install dependencies
+cd frontend
 npm install
-# OR
-pnpm install
-# OR
-bun install
+npm run dev
+```
 
-# Create environment file
+Visit http://localhost:3001
+
+### Build for Production
+
+```bash
+npm run build
+npm start
+```
+
+---
+
+## 📁 Project Structure
+
+```
+frontend/
+├── app/                    # Next.js app directory
+│   ├── page.jsx           # Home page
+│   ├── layout.tsx         # Root layout
+│   └── auth/              # Auth pages
+├── components/
+│   ├── auth/              # Authentication UI
+│   ├── dashboard/         # Main app components
+│   └── ui/                # Reusable UI components
+├── context/               # React Context (auth, theme)
+├── lib/                   # Utilities (API calls, helpers)
+├── hooks/                 # Custom React hooks
+└── public/                # Static assets
+
+```
+
+---
+
+## 🔧 Configuration
+
+Create `.env.local`:
+
+```env
+NEXT_PUBLIC_API_BASE_URL=https://marketsense-ai.onrender.com/api/v1
+```
+
+---
+
+## 📦 Dependencies
+
+- **next**: React framework with SSR/SSG
+- **react**: UI library
+- **typescript**: Type safety
+- **tailwindcss**: Utility-first CSS framework
+- **recharts**: Charting library
+- **sonner**: Toast notifications
+- **lucide-react**: Icon library
+- **framer-motion**: Animation library
+
+---
+
+## 🌐 Deployment
+
+Deployed on **Vercel** with automatic deployments from GitHub main branch.
+
+**Current Domain**: https://market-sense-ai.vercel.app
+
 cp .env.example .env.local
 # Update API_BASE_URL in .env.local if needed
 ```
