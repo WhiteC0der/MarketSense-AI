@@ -9,8 +9,6 @@ Real-time stock analysis powered by **Google Gemini AI** and **MongoDB Vector Se
 ## 🚀 Live Demo
 
 **Website**: https://market-sense-ai.vercel.app  
-**API**: https://marketsense-ai.onrender.com
-
 ---
 
 ## ✨ Key Features
