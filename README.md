@@ -318,4 +318,3 @@ For issues or questions, please open an issue on the repository or contact via e
 ---
 
 **Built by WhiteC0der**
-**whitecoder** — engineered with React, Node.js, and Google Gemini AI
