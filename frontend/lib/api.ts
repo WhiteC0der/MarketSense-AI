@@ -4,11 +4,18 @@
  */
 
 const normalizeApiBase = (rawBase?: string) => {
+  // In production/vercel, use the env var; otherwise use localhost
   const defaultBase = "http://localhost:3000/api/v1";
-  const trimmed = rawBase?.trim();
+  
+  // Get env var - it should be set in Vercel dashboard
+  const envBase = rawBase || (typeof window !== "undefined" ? undefined : process.env.NEXT_PUBLIC_API_BASE_URL);
+  
+  if (!envBase || envBase.trim() === "") {
+    console.warn("NEXT_PUBLIC_API_BASE_URL not set, using localhost");
+    return defaultBase;
+  }
 
-  if (!trimmed) return defaultBase;
-
+  const trimmed = envBase.trim();
   const noTrailingSlash = trimmed.replace(/\/+$/, "");
 
   if (noTrailingSlash.endsWith("/api/v1")) {
@@ -18,9 +25,8 @@ const normalizeApiBase = (rawBase?: string) => {
   return `${noTrailingSlash}/api/v1`;
 };
 
-const API_BASE = normalizeApiBase(
-  typeof window !== "undefined" ? process.env.NEXT_PUBLIC_API_BASE_URL : undefined
-);
+const API_BASE = normalizeApiBase(process.env.NEXT_PUBLIC_API_BASE_URL);
+console.log("API_BASE initialized to:", API_BASE);
 
 // Source item from backend news retrieval
 export interface SourceItem {
