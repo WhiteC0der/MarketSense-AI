@@ -49,13 +49,10 @@ export default function Sidebar({
   activeChatId,
   onLogout,
 }) {
-  // Use recentChats from Dashboard or fallback to default
-  const displayChats = recentChats.length > 0 
+  // Use recentChats from Dashboard or empty array
+  const displayChats = recentChats && recentChats.length > 0 
     ? recentChats 
-    : [
-        { id: 1, ticker: "AAPL", title: "Apple Analysis", timestamp: new Date(Date.now() - 7 * 86400000), messageSnippet: "" },
-        { id: 2, ticker: "TSLA", title: "Tesla Analysis", timestamp: new Date(Date.now() - 14 * 86400000), messageSnippet: "" },
-      ];
+    : [];
 
   const handleNewChatClick = () => {
     if (onNewChat) {
