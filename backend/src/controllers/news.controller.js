@@ -17,7 +17,7 @@ export const getNewsByTicker = async (req, res) => {
         const url = `https://finnhub.io/api/v1/company-news?symbol=${ticker}&from=${formatDate(lastWeek)}&to=${formatDate(today)}&token=${process.env.FINNHUB_API_KEY}`;
 
         const response = await axios.get(url);
-        const topNews = response.data.slice(0, 20);
+        const topNews = response.data.slice(0, 40);
 
         res.status(200).json(topNews);
 
@@ -43,7 +43,7 @@ export const ingestNews = async (req, res) => {
         const url = `https://finnhub.io/api/v1/company-news?symbol=${ticker}&from=${formatDate(lastWeek)}&to=${formatDate(today)}&token=${process.env.FINNHUB_API_KEY}`;
 
         const response = await axios.get(url);
-        const topNews = response.data.slice(0, 15);
+        const topNews = response.data.slice(0, 20);
 
         const savedCount = await processAndSaveNews(ticker, topNews);
 
