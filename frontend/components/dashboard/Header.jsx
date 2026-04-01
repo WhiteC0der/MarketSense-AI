@@ -26,7 +26,57 @@ export default function Header({
 
   return (
     <header className="sticky top-0 z-10 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800">
-      <div className="flex items-center justify-between px-4 py-3 gap-4 min-w-0">
+      {/* Mobile Layout */}
+      <div className="md:hidden flex items-center justify-between px-3 py-2 gap-2 min-w-0">
+        {/* Mobile Search */}
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
+          <input
+            type="text"
+            placeholder="Ticker"
+            value={tickerInput}
+            onChange={(e) => onTickerInputChange(e.target.value.toUpperCase())}
+            onKeyPress={handleKeyPress}
+            className="w-full bg-zinc-900/60 border border-zinc-800 rounded-lg pl-8 pr-2 py-2 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 transition-all disabled:opacity-50 font-mono"
+            disabled={isSearching}
+          />
+        </div>
+        {/* Mobile SCAN Button */}
+        <button
+          onClick={handleSearchClick}
+          disabled={isSearching || !tickerInput.trim()}
+          className="px-3 py-2 bg-teal-500 hover:bg-teal-400 text-zinc-950 text-xs font-bold rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1 flex-shrink-0"
+        >
+          {isSearching ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : (
+            <span>SCAN</span>
+          )}
+        </button>
+        {/* Mobile Price Pill */}
+        <button
+          onClick={onToggleChart}
+          className={`flex items-center gap-1 px-2 py-2 rounded-lg border text-xs transition-all duration-200 flex-shrink-0 ${
+            showChart
+              ? "bg-zinc-800 border-teal-500/50"
+              : "bg-zinc-900/60 border-zinc-700"
+          }`}
+        >
+          <div className="relative flex h-1.5 w-1.5 flex-shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-teal-500"></span>
+          </div>
+          <span className="font-mono text-teal-400 font-semibold">{currentTicker}</span>
+          {currentPrice && (
+            <span className="text-teal-400 font-bold">
+              ${currentPrice.toFixed(2)}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Desktop Layout */}
+      <div className="hidden md:flex items-center justify-between px-4 py-3 gap-4 min-w-0">
         {/* Search Section */}
         <div className="flex items-center gap-3 flex-1 max-w-xl min-w-0">
           <div className="relative flex-1 min-w-0">

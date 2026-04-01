@@ -128,12 +128,18 @@ export const authAPI = {
   },
 
   me: async () => {
-    const res = await apiCall(`${API_BASE}/auth/me`);
-    if (!res.ok) {
-      throw new Error("No active session");
+    try {
+      const res = await apiCall(`${API_BASE}/auth/me`);
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "No active session");
+      }
+      const data = await res.json();
+      return data.user || data;
+    } catch (error) {
+      console.error("getMe error:", error);
+      throw error;
     }
-    const data = await res.json();
-    return data.user;
   },
 };
 

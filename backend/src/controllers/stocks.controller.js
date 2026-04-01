@@ -37,10 +37,14 @@ const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
 const USE_FINNHUB_FALLBACK =
     process.env.STOCK_USE_FINNHUB_FALLBACK === 'false' ? false : Boolean(FINNHUB_API_KEY);
 const publicEndpointsOnlyEnv = process.env.YAHOO_PUBLIC_ENDPOINTS_ONLY;
+// On Render/production, prioritize Finnhub since Yahoo gets blocked
+const isRender = process.env.RENDER === 'true' || process.env.RENDER_EXTERNAL_HOSTNAME;
 const USE_PUBLIC_YAHOO_ENDPOINTS_ONLY =
-    typeof publicEndpointsOnlyEnv === 'string'
-        ? publicEndpointsOnlyEnv === 'true'
-        : process.env.NODE_ENV === 'production';
+    isRender ? true : (
+        typeof publicEndpointsOnlyEnv === 'string'
+            ? publicEndpointsOnlyEnv === 'true'
+            : process.env.NODE_ENV === 'production'
+    );
 
 const getCachedValue = (key) => {
     const found = cacheStore.get(key);

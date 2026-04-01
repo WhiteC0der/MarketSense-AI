@@ -36,7 +36,9 @@ const normalizeSource = (src) => {
 
 export default function Dashboard() {
   const { logout } = useAuth();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Default sidebar collapsed on mobile devices
+  const [isMobile, setIsMobile] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   const [showChart, setShowChart] = useState(false);
   const [currentTicker, setCurrentTicker] = useState("AAPL");
   const [tickerInput, setTickerInput] = useState("AAPL");
@@ -48,6 +50,22 @@ export default function Dashboard() {
   const [currentPrice, setCurrentPrice] = useState(null);
   const [inputValue, setInputValue] = useState("");
   const [recentChats, setRecentChats] = useState([]);
+
+  // Handle mobile responsiveness
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      // Auto-collapse sidebar on mobile
+      if (mobile && !sidebarCollapsed) {
+        setSidebarCollapsed(true);
+      }
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [sidebarCollapsed]);
   const [activeChatId, setActiveChatId] = useState(null);
 
   // Load chat history on mount

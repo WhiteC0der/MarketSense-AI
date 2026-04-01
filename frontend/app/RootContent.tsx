@@ -11,6 +11,7 @@ export default function RootContent({
   children: React.ReactNode;
 }) {
   const { isAuthenticated, isLoading } = useAuth();
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
   if (isLoading) {
     return (
