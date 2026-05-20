@@ -16,6 +16,17 @@ const getCookieOptions = (expiresInMs = 7 * 24 * 60 * 60 * 1000) => ({
 });
 
 /**
+ * Extract token from Authorization header or cookies
+ */
+const getTokenFromRequest = (req) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        return authHeader.split(' ')[1];
+    }
+    return req.cookies?.token || null;
+};
+
+/**
  * Register a new user
  */
 export const register = async (req, res) => {
@@ -39,7 +50,7 @@ export const register = async (req, res) => {
 };
 
 /**
- * Login user and set authentication cookie
+ * Login user and set authentication cookie + return token
  */
 export const login = async (req, res) => {
     try {
@@ -57,12 +68,15 @@ export const login = async (req, res) => {
             { expiresIn: '7d' }
         );
 
+        // Set cookie (works on desktop, may be blocked on mobile cross-origin)
         res.cookie('token', token, getCookieOptions());
 
+        // Also return token in response body (works on ALL platforms including mobile)
         res.status(200).json({ 
             authenticated: true,
             email: user.email, 
             message: 'Logged in successfully',
+            token,
             user: { userId: user._id, email: user.email }
         });
     } catch (error) {
@@ -88,7 +102,7 @@ export const logout = (req, res) => {
  */
 export const getMe = async (req, res) => {
     try {
-        const token = req.cookies.token;
+        const token = getTokenFromRequest(req);
         
         if (!token) {
             return res.status(401).json({ authenticated: false, error: 'No session found' });

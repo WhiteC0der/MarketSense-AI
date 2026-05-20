@@ -1,6 +1,10 @@
 /**
  * API Client for MarketSense AI Backend
  * Handles all communication with the Express backend
+ * 
+ * Uses dual auth strategy:
+ * - Authorization: Bearer header (primary, works on all mobile browsers)
+ * - credentials: 'include' cookies (fallback for desktop)
  */
 
 const normalizeApiBase = (rawBase) => {
@@ -25,15 +29,53 @@ const normalizeApiBase = (rawBase) => {
 const API_BASE = normalizeApiBase(import.meta.env.VITE_API_BASE_URL);
 
 /**
+ * Token management
+ * Stores JWT in localStorage for mobile browsers that block cross-origin cookies
+ */
+const TOKEN_KEY = 'marketsense_token';
+
+export const tokenManager = {
+  getToken: () => {
+    try {
+      return localStorage.getItem(TOKEN_KEY);
+    } catch {
+      return null;
+    }
+  },
+
+  setToken: (token) => {
+    try {
+      if (token) {
+        localStorage.setItem(TOKEN_KEY, token);
+      }
+    } catch {
+      // localStorage might be unavailable in some contexts
+    }
+  },
+
+  clearToken: () => {
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+    } catch {
+      // ignore
+    }
+  },
+};
+
+/**
  * Make authenticated API calls
- * Automatically includes credentials and Content-Type headers
+ * Sends both Authorization header AND credentials cookie for maximum compatibility
  */
 const apiCall = async (url, options = {}) => {
   try {
+    const token = tokenManager.getToken();
+    const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
     const response = await fetch(url, {
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders,
         ...options.headers,
       },
       ...options,
@@ -89,7 +131,14 @@ export const authAPI = {
         }
         throw new Error(errorMsg);
       }
-      return res.json();
+      const data = await res.json();
+
+      // Store token for mobile browsers that block cross-origin cookies
+      if (data.token) {
+        tokenManager.setToken(data.token);
+      }
+
+      return data;
     } catch (error) {
       throw error;
     }
@@ -100,8 +149,11 @@ export const authAPI = {
       const res = await apiCall(`${API_BASE}/auth/logout`, {
         method: 'POST',
       });
+      // Always clear the stored token on logout
+      tokenManager.clearToken();
       return res.json();
     } catch {
+      tokenManager.clearToken();
       return { message: 'Logged out' };
     }
   },
