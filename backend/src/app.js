@@ -15,6 +15,7 @@ const defaultAllowedOrigins = [
   "http://localhost:3000",
   "http://localhost:3001",
   "https://market-sense-ai.vercel.app",
+  "https://market-sense-ai-ten.vercel.app",
 ];
 
 const envOrigins = (process.env.FRONTEND_URLS || "")
