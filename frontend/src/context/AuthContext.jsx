@@ -28,7 +28,6 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     authInProgress.current = true;
-    setIsLoading(true);
     try {
       const loginData = await authAPI.login(email, password);
       // Use user data directly from login response if available
@@ -43,13 +42,11 @@ export function AuthProvider({ children }) {
       throw error;
     } finally {
       authInProgress.current = false;
-      setIsLoading(false);
     }
   }, []);
 
   const register = useCallback(async (email, password) => {
     authInProgress.current = true;
-    setIsLoading(true);
     try {
       await authAPI.register(email, password);
       const loginData = await authAPI.login(email, password);
@@ -63,7 +60,6 @@ export function AuthProvider({ children }) {
       throw error;
     } finally {
       authInProgress.current = false;
-      setIsLoading(false);
     }
   }, []);
 

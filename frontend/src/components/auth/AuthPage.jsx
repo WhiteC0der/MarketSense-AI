@@ -40,7 +40,7 @@ const getPasswordStrength = (password) => {
 };
 
 export default function AuthPage() {
-  const { login, register, isLoading: authLoading } = useAuth();
+  const { login, register } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -149,7 +149,7 @@ export default function AuthPage() {
 
         if (msg.includes('not found') || msg.includes('user not found')) {
           errorMessage = 'No account found with this email. Please create an account first.';
-        } else if (msg.includes('incorrect') || msg.includes('invalid') || msg.includes('password')) {
+        } else if (msg.includes('invalid credentials') || msg.includes('incorrect') || msg.includes('invalid') || msg.includes('password')) {
           errorMessage = 'Incorrect email or password. Please try again.';
         } else if (msg.includes('already exists') || msg.includes('already registered')) {
           errorMessage = 'An account with this email already exists. Please sign in instead.';
@@ -170,7 +170,7 @@ export default function AuthPage() {
     }
   };
 
-  const isSubmitting = isLoading || authLoading;
+  const isSubmitting = isLoading;
 
   return (
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
