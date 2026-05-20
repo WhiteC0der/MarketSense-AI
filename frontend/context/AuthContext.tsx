@@ -42,9 +42,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
+      console.log("Attempting login for:", email);
       await authAPI.login(email, password);
       const userData = await authAPI.me();
       setUser(userData);
+      console.log("Login successful");
+    } catch (error) {
+      console.error("Login failed:", error);
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -53,10 +58,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const register = async (email: string, password: string) => {
     setIsLoading(true);
     try {
+      console.log("Attempting registration for:", email);
       await authAPI.register(email, password);
       await authAPI.login(email, password);
       const userData = await authAPI.me();
       setUser(userData);
+      console.log("Registration successful");
+    } catch (error) {
+      console.error("Registration failed:", error);
+      throw error;
     } finally {
       setIsLoading(false);
     }

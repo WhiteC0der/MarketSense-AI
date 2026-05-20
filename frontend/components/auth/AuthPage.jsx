@@ -14,6 +14,13 @@ export default function AuthPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [isOnline, setIsOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
+
+  // Check network connectivity
+  if (typeof window !== "undefined") {
+    window.addEventListener("online", () => setIsOnline(true));
+    window.addEventListener("offline", () => setIsOnline(false));
+  }
 
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -163,6 +170,19 @@ export default function AuthPage() {
                 <div className="flex-1">
                   <p className="text-red-400 text-sm font-medium">Authentication Error</p>
                   <p className="text-red-300/80 text-sm mt-1">{error}</p>
+                  {!isOnline && (
+                    <p className="text-yellow-300 text-xs mt-2 font-medium">📡 No internet connection detected</p>
+                  )}
+                  {isOnline && error.toLowerCase().includes("network") && (
+                    <div className="text-yellow-300/90 text-xs mt-2 space-y-1">
+                      <p className="font-medium">Try these steps:</p>
+                      <ul className="list-disc list-inside space-y-0.5">
+                        <li>Refresh the page</li>
+                        <li>Check internet connection</li>
+                        <li>Try again in a few moments</li>
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

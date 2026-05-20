@@ -9,8 +9,8 @@ const isProduction = process.env.NODE_ENV === 'production' ||
 
 const getCookieOptions = (expiresInMs = 7 * 24 * 60 * 60 * 1000) => ({
     httpOnly: true,
-    secure: true, // Always secure for production API calls
-    sameSite: 'none',
+    secure: isProduction, // Only secure on production; localhost needs false for HTTP
+    sameSite: isProduction ? 'none' : 'lax', // 'none' requires secure=true, use 'lax' for local dev
     maxAge: expiresInMs,
     path: '/',
 });

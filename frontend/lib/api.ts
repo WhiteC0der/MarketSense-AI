@@ -82,14 +82,27 @@ const apiCall = async (
   url: string,
   options: RequestInit = {}
 ): Promise<Response> => {
-  return fetch(url, {
-    credentials: "include", // Include cookies for auth
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-    ...options,
-  });
+  try {
+    console.log(`[API] ${options.method || 'GET'} ${url}`);
+    const response = await fetch(url, {
+      credentials: "include", // Include cookies for auth
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+      ...options,
+    });
+    
+    // Log response status
+    if (!response.ok) {
+      console.warn(`[API] Error: ${response.status} ${response.statusText}`);
+    }
+    
+    return response;
+  } catch (error) {
+    console.error(`[API] Network error:`, error);
+    throw new Error(`Network error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 };
 
 /**
@@ -97,47 +110,84 @@ const apiCall = async (
  */
 export const authAPI = {
   register: async (email: string, password: string) => {
-    const res = await apiCall(`${API_BASE}/auth/register`, {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    });
-    if (!res.ok) {
-      const error = await res.json();
-      throw new Error(error.error || "Registration failed");
+    try {
+      const res = await apiCall(`${API_BASE}/auth/register`, {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) {
+        let errorMsg = "Registration failed";
+        try {
+          const error = await res.json();
+          errorMsg = error.error || errorMsg;
+        } catch {
+          errorMsg = `Server error: ${res.status} ${res.statusText}`;
+        }
+        throw new Error(errorMsg);
+      }
+      return res.json();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Network error";
+      console.error(`[Auth Register] ${msg}`);
+      throw error;
     }
-    return res.json();
   },
 
   login: async (email: string, password: string) => {
-    const res = await apiCall(`${API_BASE}/auth/login`, {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    });
-    if (!res.ok) {
-      const error = await res.json();
-      throw new Error(error.error || "Login failed");
+    try {
+      const res = await apiCall(`${API_BASE}/auth/login`, {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) {
+        let errorMsg = "Login failed";
+        try {
+          const error = await res.json();
+          errorMsg = error.error || errorMsg;
+        } catch {
+          errorMsg = `Server error: ${res.status} ${res.statusText}`;
+        }
+        throw new Error(errorMsg);
+      }
+      return res.json();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Network error";
+      console.error(`[Auth Login] ${msg}`);
+      throw error;
     }
-    return res.json();
   },
 
   logout: async () => {
-    const res = await apiCall(`${API_BASE}/auth/logout`, {
-      method: "POST",
-    });
-    return res.json();
+    try {
+      const res = await apiCall(`${API_BASE}/auth/logout`, {
+        method: "POST",
+      });
+      return res.json();
+    } catch (error) {
+      console.error(`[Auth Logout]`, error);
+      // Don't throw on logout - just clear local state
+      return { message: "Logged out" };
+    }
   },
 
   me: async () => {
     try {
       const res = await apiCall(`${API_BASE}/auth/me`);
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "No active session");
+        let errorMsg = "No active session";
+        try {
+          const error = await res.json();
+          errorMsg = error.error || errorMsg;
+        } catch {
+          errorMsg = `Server error: ${res.status}`;
+        }
+        throw new Error(errorMsg);
       }
       const data = await res.json();
       return data.user || data;
     } catch (error) {
-      console.error("getMe error:", error);
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      console.error(`[Auth Me] ${msg}`);
       throw error;
     }
   },
