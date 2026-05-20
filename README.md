@@ -201,18 +201,6 @@ MarketSense-AI/
 
 ---
 
-## 🌐 Deployment
-
-**Frontend**: Deployed on Vercel with automatic GitHub deployments
-**Backend**: Deployed on Render with auto-deployment on push
-
-Current Production:
-- **Frontend**: https://market-sense-ai-ten.vercel.app
-- **Backend**: https://marketsense-ai.onrender.com
-- **Database**: MongoDB Atlas (US region)
-
----
-
 ## 📝 Development Status
 
 ✅ Production Ready
