@@ -31,9 +31,9 @@ const markdownComponents = {
   code: ({ children }) => <code className="bg-zinc-800/50 px-2 py-1 rounded text-xs font-mono text-teal-300">{children}</code>,
 };
 
-function ChatMessages({ messages = [], isLoading = false }) {
+function ChatMessages({ messages = [], isLoading = false, messagesEndRef }) {
   return (
-    <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
+    <div className="flex-1 overflow-y-auto custom-scrollbar touch-scroll p-3 md:p-4 space-y-4 md:space-y-6">
       {messages.length === 0 ? (
         <motion.div className="h-full flex items-center justify-center" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4 }}>
           <div className="text-center">
@@ -49,18 +49,18 @@ function ChatMessages({ messages = [], isLoading = false }) {
             <motion.div key={index} variants={messageVariants} initial="hidden" animate="visible" custom={index}>
               {message.role === 'user' ? (
                 <motion.div className="flex justify-end" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.3 }}>
-                  <div className="max-w-[80%] bg-gradient-to-br from-teal-500/20 to-cyan-500/10 text-white px-4 py-3 rounded-2xl rounded-br-md border border-teal-500/20">
+                  <div className="max-w-[88%] md:max-w-[80%] bg-gradient-to-br from-teal-500/20 to-cyan-500/10 text-white px-3 md:px-4 py-2.5 md:py-3 rounded-2xl rounded-br-md border border-teal-500/20">
                     <p className="text-sm leading-relaxed">{message.content}</p>
                   </div>
                 </motion.div>
               ) : (
                 <motion.div className="space-y-3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
                   {message.sources && message.sources.length > 0 && <SourceCards sources={message.sources} />}
-                  <div className="flex gap-3 max-w-[90%]">
-                    <motion.div className="shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center" animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 2, repeat: Infinity }}>
-                      <Sparkles className="w-4 h-4 text-zinc-950" />
+                  <div className="flex gap-2 md:gap-3 max-w-full md:max-w-[90%]">
+                    <motion.div className="shrink-0 w-6 h-6 md:w-7 md:h-7 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center" animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 2, repeat: Infinity }}>
+                      <Sparkles className="w-3.5 h-3.5 md:w-4 md:h-4 text-zinc-950" />
                     </motion.div>
-                    <div className="text-sm text-zinc-300 leading-relaxed prose prose-invert max-w-none">
+                    <div className="text-sm text-zinc-300 leading-relaxed prose prose-invert max-w-none min-w-0">
                       <ReactMarkdown components={markdownComponents}>{message.content}</ReactMarkdown>
                     </div>
                   </div>
@@ -74,9 +74,9 @@ function ChatMessages({ messages = [], isLoading = false }) {
       {/* Typing Indicator */}
       <AnimatePresence>
         {isLoading && (
-          <motion.div className="flex gap-3" variants={typingVariants} initial="hidden" animate="visible" exit="exit">
-            <motion.div className="shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center" animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 2, repeat: Infinity }}>
-              <Sparkles className="w-4 h-4 text-zinc-950" />
+          <motion.div className="flex gap-2 md:gap-3" variants={typingVariants} initial="hidden" animate="visible" exit="exit">
+            <motion.div className="shrink-0 w-6 h-6 md:w-7 md:h-7 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center" animate={{ scale: [1, 1.05, 1] }} transition={{ duration: 2, repeat: Infinity }}>
+              <Sparkles className="w-3.5 h-3.5 md:w-4 md:h-4 text-zinc-950" />
             </motion.div>
             <div className="flex gap-1.5 items-center">
               {[0, 1, 2].map((i) => (
@@ -86,6 +86,9 @@ function ChatMessages({ messages = [], isLoading = false }) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Scroll anchor - inside the scrollable area */}
+      <div ref={messagesEndRef} />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { authAPI } from '@/lib/api';
 
 const AuthContext = createContext(undefined);
@@ -6,8 +6,12 @@ const AuthContext = createContext(undefined);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Prevent rehydrate from running if login/register is in progress
+  const authInProgress = useRef(false);
 
   const rehydrate = useCallback(async () => {
+    // Don't rehydrate if an auth action is already in flight
+    if (authInProgress.current) return;
     try {
       const userData = await authAPI.me();
       setUser(userData);
@@ -23,28 +27,42 @@ export function AuthProvider({ children }) {
   }, [rehydrate]);
 
   const login = useCallback(async (email, password) => {
+    authInProgress.current = true;
     setIsLoading(true);
     try {
-      await authAPI.login(email, password);
-      const userData = await authAPI.me();
-      setUser(userData);
+      const loginData = await authAPI.login(email, password);
+      // Use user data directly from login response if available
+      // to avoid a second round-trip that can fail on mobile
+      if (loginData?.user) {
+        setUser(loginData.user);
+      } else {
+        const userData = await authAPI.me();
+        setUser(userData);
+      }
     } catch (error) {
       throw error;
     } finally {
+      authInProgress.current = false;
       setIsLoading(false);
     }
   }, []);
 
   const register = useCallback(async (email, password) => {
+    authInProgress.current = true;
     setIsLoading(true);
     try {
       await authAPI.register(email, password);
-      await authAPI.login(email, password);
-      const userData = await authAPI.me();
-      setUser(userData);
+      const loginData = await authAPI.login(email, password);
+      if (loginData?.user) {
+        setUser(loginData.user);
+      } else {
+        const userData = await authAPI.me();
+        setUser(userData);
+      }
     } catch (error) {
       throw error;
     } finally {
+      authInProgress.current = false;
       setIsLoading(false);
     }
   }, []);

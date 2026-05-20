@@ -1,5 +1,5 @@
 import { memo, useCallback } from 'react';
-import { Search, Loader2, Activity } from 'lucide-react';
+import { Search, Loader2, Activity, Menu } from 'lucide-react';
 
 function Header({
   showChart,
@@ -10,6 +10,8 @@ function Header({
   onTickerInputChange,
   onSearch,
   isSearching,
+  isMobile,
+  onMenuToggle,
 }) {
   const handleSearchClick = useCallback(() => {
     if (tickerInput.trim()) {
@@ -24,19 +26,28 @@ function Header({
   }, [handleSearchClick]);
 
   return (
-    <header className="sticky top-0 z-10 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800">
+    <header className="sticky top-0 z-10 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800 safe-top">
       {/* Mobile Layout */}
-      <div className="md:hidden flex items-center justify-between px-3 py-2 gap-2 min-w-0">
+      <div className="md:hidden flex items-center px-2 py-1.5 gap-1.5 min-w-0">
+        {/* Hamburger Menu */}
+        <button
+          onClick={onMenuToggle}
+          className="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800/80 transition-all flex-shrink-0"
+          aria-label="Open menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
         {/* Mobile Search */}
         <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
           <input
             type="text"
             placeholder="Ticker"
             value={tickerInput}
             onChange={(e) => onTickerInputChange(e.target.value.toUpperCase())}
             onKeyDown={handleKeyPress}
-            className="w-full bg-zinc-900/60 border border-zinc-800 rounded-lg pl-8 pr-2 py-2 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 transition-all disabled:opacity-50 font-mono"
+            className="w-full bg-zinc-900/60 border border-zinc-800 rounded-lg pl-7 pr-2 py-2 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 transition-all disabled:opacity-50 font-mono"
             disabled={isSearching}
           />
         </div>
@@ -44,7 +55,7 @@ function Header({
         <button
           onClick={handleSearchClick}
           disabled={isSearching || !tickerInput.trim()}
-          className="px-3 py-2 bg-teal-500 hover:bg-teal-400 text-zinc-950 text-xs font-bold rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1 flex-shrink-0"
+          className="px-2.5 py-2 bg-teal-500 hover:bg-teal-400 text-zinc-950 text-xs font-bold rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1 flex-shrink-0"
         >
           {isSearching ? (
             <Loader2 className="w-3 h-3 animate-spin" />
@@ -67,7 +78,7 @@ function Header({
           </div>
           <span className="font-mono text-teal-400 font-semibold">{currentTicker}</span>
           {currentPrice && (
-            <span className="text-teal-400 font-bold">
+            <span className="text-teal-400 font-bold hidden min-[400px]:inline">
               ${currentPrice.toFixed(2)}
             </span>
           )}

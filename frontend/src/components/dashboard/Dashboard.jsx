@@ -5,6 +5,7 @@ import ChatMessages from './ChatMessages';
 import ChatInput from './ChatInput';
 import { chatAPI, stockAPI, newsAPI } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import { useIsMobile } from '@/hooks/useMobile';
 import { toast } from 'sonner';
 
 // Lazy load StockChart since it includes recharts (~200KB)
@@ -42,7 +43,9 @@ const extractTickerFromTitle = (title) => {
 
 export default function Dashboard() {
   const { logout } = useAuth();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.innerWidth < 768);
+  const isMobile = useIsMobile();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showChart, setShowChart] = useState(false);
   const [currentTicker, setCurrentTicker] = useState('AAPL');
   const [tickerInput, setTickerInput] = useState('AAPL');
@@ -55,18 +58,12 @@ export default function Dashboard() {
   const [recentChats, setRecentChats] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
 
-  // Handle mobile responsiveness
+  // Close sidebar drawer when switching to desktop
   useEffect(() => {
-    const handleResize = () => {
-      const mobile = window.innerWidth < 768;
-      if (mobile) {
-        setSidebarCollapsed(true);
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    if (!isMobile && sidebarOpen) {
+      setSidebarOpen(false);
+    }
+  }, [isMobile, sidebarOpen]);
 
   // Load chat history on mount
   useEffect(() => {
@@ -95,6 +92,8 @@ export default function Dashboard() {
   // Load specific chat conversation
   const handleSelectChat = useCallback(async (chatId) => {
     setActiveChatId(chatId);
+    // Close mobile drawer after selection
+    if (isMobile) setSidebarOpen(false);
     try {
       const chat = await chatAPI.getChat(chatId);
       if (chat && chat.messages) {
@@ -117,7 +116,7 @@ export default function Dashboard() {
       setMessages([buildWelcome(currentTicker)]);
       setActiveChatId(null);
     }
-  }, [currentTicker]);
+  }, [currentTicker, isMobile]);
 
   // Refresh chat history after sending message
   const refreshChatHistory = useCallback(async () => {
@@ -147,11 +146,13 @@ export default function Dashboard() {
     setCurrentPrice(null);
     setShowChart(false);
     setActiveChatId(null);
+    // Close mobile drawer
+    if (isMobile) setSidebarOpen(false);
 
     toast.success('New chat started with AAPL', {
       description: 'Ready to analyze. Click SCAN to ingest latest data.',
     });
-  }, []);
+  }, [isMobile]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -296,12 +297,33 @@ export default function Dashboard() {
     }
   }, [currentTicker, activeChatId, refreshChatHistory]);
 
+  // Toggle sidebar: on mobile opens/closes drawer, on desktop collapses/expands
+  const handleSidebarToggle = useCallback(() => {
+    if (isMobile) {
+      setSidebarOpen((prev) => !prev);
+    } else {
+      setSidebarCollapsed((prev) => !prev);
+    }
+  }, [isMobile]);
+
   return (
-    <div className="flex h-screen bg-zinc-950 text-white overflow-hidden">
+    <div className="flex h-screen-safe bg-zinc-950 text-white overflow-hidden">
+      {/* Mobile Sidebar Backdrop */}
+      {isMobile && sidebarOpen && (
+        <div
+          className="mobile-backdrop animate-fade-in"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
       {/* Sidebar */}
       <Sidebar
-        collapsed={sidebarCollapsed}
-        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+        collapsed={isMobile ? false : sidebarCollapsed}
+        isMobile={isMobile}
+        isOpen={sidebarOpen}
+        onToggle={handleSidebarToggle}
+        onClose={() => setSidebarOpen(false)}
         currentTicker={currentTicker}
         onSelectTicker={setCurrentTicker}
         onSelectChat={handleSelectChat}
@@ -323,23 +345,23 @@ export default function Dashboard() {
           onTickerInputChange={setTickerInput}
           onSearch={handleScan}
           isSearching={isScanning}
+          isMobile={isMobile}
+          onMenuToggle={() => setSidebarOpen(true)}
         />
 
         {/* Chart Area - Lazy loaded */}
         {showChart && (
           <Suspense fallback={
-            <div className="h-52 bg-zinc-900/60 border-b border-zinc-800 flex items-center justify-center">
+            <div className="h-40 md:h-52 bg-zinc-900/60 border-b border-zinc-800 flex items-center justify-center">
               <p className="text-zinc-500 text-sm animate-pulse">Loading chart...</p>
             </div>
           }>
-            <StockChart isVisible={showChart} chartData={chartData} ticker={currentTicker} />
+            <StockChart isVisible={showChart} chartData={chartData} ticker={currentTicker} isMobile={isMobile} />
           </Suspense>
         )}
 
         {/* Chat Interface */}
-        <ChatMessages messages={messages} isLoading={isLoading} />
-
-        <div ref={messagesEndRef} />
+        <ChatMessages messages={messages} isLoading={isLoading} messagesEndRef={messagesEndRef} />
 
         {/* Chat Input */}
         <ChatInput
