@@ -8,7 +8,7 @@ Real-time stock analysis powered by **Google Gemini AI** and **MongoDB Vector Se
 
 ## 🚀 Live Demo
 
-**Website**: https://market-sense-ai.vercel.app  
+**Website**: https://market-sense-ai-ten.vercel.app/
 
 ---
 
@@ -20,15 +20,15 @@ Real-time stock analysis powered by **Google Gemini AI** and **MongoDB Vector Se
 - 📰 **Live News** — Automatic financial news ingestion and AI-powered analysis
 - 💾 **Chat History** — Persistent conversations saved per user
 - 🔐 **Secure Auth** — JWT authentication with HttpOnly cookies
-- 📱 **Responsive UI** — Mobile-first design with modern components
+- 📱 **Responsive UI** — Mobile-first design with modern, premium aesthetics
 
 ---
 
 ## 🛠️ Tech Stack
 
 **Frontend**
-- Next.js 16 with TypeScript
-- Tailwind CSS + shadcn/ui
+- React 19 with Vite
+- Vanilla CSS (custom design system)
 - Recharts for data visualization
 - Vercel hosting
 
@@ -100,21 +100,19 @@ MONGO_URI=mongodb+srv://...
 JWT_SECRET=your-secret-key
 GEMINI_API_KEY=your-key
 FINNHUB_API_KEY=your-key
-FRONTEND_URLS=https://market-sense-ai.vercel.app
+FRONTEND_URLS=https://market-sense-ai-ten.vercel.app
 ```
 
-### Frontend `.env.local`
+### Frontend `.env`
 ```env
-NEXT_PUBLIC_API_BASE_URL=https://marketsense-ai.onrender.com/api/v1
+VITE_API_BASE_URL=https://marketsense-ai.onrender.com/api/v1
 ```
 
 ---
 
 ## 🚀 Quick Start
 
-### Running Locally
-
-**Backend**
+### Backend
 ```bash
 cd backend
 npm install
@@ -122,24 +120,24 @@ npm start
 # Server runs on http://localhost:5000
 ```
 
-**Frontend**
+### Frontend
 ```bash
 cd frontend
 npm install
 npm run dev
-# App runs on http://localhost:3001
+# App runs on http://localhost:5173
 ```
 
 ### Build for Production
 
-**Backend**
 ```bash
+# Frontend
+cd frontend
 npm run build
-npm start
-```
+npm run preview
 
-**Frontend**
-```bash
+# Backend
+cd backend
 npm run build
 npm start
 ```
@@ -150,31 +148,54 @@ npm start
 
 ```
 MarketSense-AI/
-├── frontend/                 # Next.js app
-│   ├── app/                 # Pages & layouts
-│   ├── components/          # React components
-│   ├── lib/                 # API & utilities
-│   └── public/              # Static assets
-│
-├── backend/                 # Express API
+├── frontend/                 # React + Vite SPA
 │   ├── src/
-│   │   ├── models/         # MongoDB schemas
-│   │   ├── router/         # API endpoints
-│   │   ├── services/       # Business logic
-│   │   └── middleware/     # Auth & validation
+│   │   ├── components/      # React components
+│   │   │   ├── auth/        # Login / Register forms
+│   │   │   └── dashboard/   # Main app UI
+│   │   ├── context/         # AuthContext (state management)
+│   │   ├── hooks/           # Custom React hooks
+│   │   ├── lib/             # API client & utilities
+│   │   ├── App.jsx          # Root component & routing
+│   │   ├── main.jsx         # Entry point
+│   │   └── index.css        # Global styles
+│   ├── index.html           # HTML entry
+│   ├── vite.config.js       # Vite configuration
+│   └── vercel.json          # Vercel SPA rewrite rules
+│
+├── backend/                  # Express API
+│   ├── src/
+│   │   ├── models/          # MongoDB schemas
+│   │   ├── router/          # API endpoints
+│   │   ├── services/        # Business logic (Gemini AI)
+│   │   ├── middleware/      # Auth & validation
+│   │   └── app.js           # Express setup
 │   └── package.json
 │
-└── README.md               # This file
+└── README.md                 # This file
 ```
 
 ---
 
-## 🔒 Security Features
+## 💡 How It Works
+
+1. **User registers** with email/password
+2. **User logs in** and accesses the dashboard
+3. **User searches** for a stock ticker
+4. **Charts load** with live price data
+5. **User asks a question** about the stock
+6. **AI analyzes** relevant news articles via vector search
+7. **Gemini AI** generates an intelligent, sourced answer
+8. **Conversation saved** to user's chat history
+
+---
+
+## 🔒 Security
 
 - ✅ Password hashing with bcryptjs
 - ✅ JWT authentication with HttpOnly cookies
-- ✅ CORS protection for production domains
-- ✅ Rate limiting on auth endpoints
+- ✅ CORS configured for production domains
+- ✅ Rate limiting on auth endpoints (10 req/15min)
 - ✅ Input validation & error handling
 - ✅ MongoDB vector search on encrypted connections
 
@@ -182,11 +203,11 @@ MarketSense-AI/
 
 ## 🌐 Deployment
 
-**Frontend**: Deployed on Vercel with automatic GitHub deployments  
+**Frontend**: Deployed on Vercel with automatic GitHub deployments
 **Backend**: Deployed on Render with auto-deployment on push
 
 Current Production:
-- **Frontend**: https://market-sense-ai.vercel.app
+- **Frontend**: https://market-sense-ai-ten.vercel.app
 - **Backend**: https://marketsense-ai.onrender.com
 - **Database**: MongoDB Atlas (US region)
 
@@ -194,120 +215,11 @@ Current Production:
 
 ## 📝 Development Status
 
-✅ Production Ready  
-✅ All features tested  
-✅ CORS configured  
-✅ Rate limiting enabled  
+✅ Production Ready
+✅ All features tested
+✅ CORS configured
+✅ Rate limiting enabled
 ✅ Zero build errors
-
----
-
-## 💡 How It Works
-
-1. **User registers** with email/password
-2. **User logs in** and access dashboard
-3. **User searches** for a stock ticker
-4. **Charts load** with live price data
-5. **User asks question** about the stock
-6. **AI analyzes** relevant news articles via vector search
-7. **Gemini AI** generates intelligent, sourced answer
-8. **Conversation saved** to user's chat history
-
----
-
-## 📞 Questions?
-
-Check the [Frontend README](./frontend/README.md) or [Backend README](./backend/README.md) for detailed documentation.
-```
-MONGODB_URI=your_mongodb_connection_string
-GEMINI_API_KEY=your_gemini_api_key
-FINNHUB_API_KEY=your_finnhub_key
-JWT_SECRET=your_jwt_secret
-NODE_ENV=production
-```
-
-### Frontend (Vercel Dashboard)
-```
-NEXT_PUBLIC_API_BASE_URL=https://marketsense-ai.onrender.com/api/v1
-```
-
----
-
-## 📦 Local Development
-
-### Backend
-```bash
-cd backend
-npm install
-npm start
-```
-
-### Frontend
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Frontend runs on `http://localhost:3001`, Backend on `http://localhost:3000`
-
----
-
-## 📝 Project Structure
-
-```
-MarketSense AI/
-├── backend/
-│   ├── src/
-│   │   ├── router/          (auth, chat, news, stocks)
-│   │   ├── models/          (User, Conversation, News)
-│   │   ├── middleware/      (Auth, CORS)
-│   │   ├── services/        (Gemini AI)
-│   │   └── app.js           (Express setup)
-│
-├── frontend/
-│   ├── app/                 (Next.js routes)
-│   ├── components/
-│   │   ├── auth/           (Login/Register)
-│   │   ├── dashboard/      (Main app UI)
-│   │   └── ui/             (shadcn/ui components)
-│   ├── lib/
-│   │   └── api.ts          (API client)
-│   └── context/
-│       └── AuthContext.tsx (State management)
-```
-
----
-
-## 🎯 Key Features
-
-### Authentication
-- Secure JWT-based login with HttpOnly cookies
-- Email/password validation
-- Session persistence across browser restarts
-
-### Chat Interface
-- RAG (Retrieval-Augmented Generation) powered responses
-- Citation of source articles
-- Real-time conversation history
-- Multi-ticket support
-
-### Stock Analysis
-- Real-time price data via Yahoo Finance
-- 30-day interactive price charts
-- News sentiment analysis
-- Vector semantic search
-
----
-
-## 🔐 Security
-
-- ✅ CORS configured for production domain
-- ✅ HttpOnly cookies prevent XSS attacks
-- ✅ JWT tokens for stateless authentication
-- ✅ Password hashing with bcryptjs
-- ✅ Rate limiting on auth endpoints (10 req/15min)
-- ✅ Input validation on all endpoints
 
 ---
 
