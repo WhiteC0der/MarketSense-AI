@@ -8,7 +8,7 @@ Real-time stock analysis powered by **Google Gemini AI** and **MongoDB Vector Se
 
 ## 🚀 Live Demo
 
-**Website**: https://market-sense-ai-ten.vercel.app/
+**Website**: https://market-sense-ai.vercel.app/
 
 ---
 
@@ -198,18 +198,6 @@ MarketSense-AI/
 - ✅ Rate limiting on auth endpoints (10 req/15min)
 - ✅ Input validation & error handling
 - ✅ MongoDB vector search on encrypted connections
-
----
-
-## 🌐 Deployment
-
-**Frontend**: Deployed on Vercel with automatic GitHub deployments
-**Backend**: Deployed on Render with auto-deployment on push
-
-Current Production:
-- **Frontend**: https://market-sense-ai-ten.vercel.app
-- **Backend**: https://marketsense-ai.onrender.com
-- **Database**: MongoDB Atlas (US region)
 
 ---
 
