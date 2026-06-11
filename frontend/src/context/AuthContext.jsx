@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { authAPI } from '@/lib/api';
+import { authAPI, tokenManager } from '@/lib/api';
 
 const AuthContext = createContext(undefined);
 
@@ -8,14 +8,32 @@ export function AuthProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
   // Prevent rehydrate from running if login/register is in progress
   const authInProgress = useRef(false);
+  // Prevent double-mount in StrictMode from firing two /auth/me calls
+  const rehydrateRan = useRef(false);
 
   const rehydrate = useCallback(async () => {
     // Don't rehydrate if an auth action is already in flight
     if (authInProgress.current) return;
+
+    // Fast path: if no token in localStorage, skip the API call entirely
+    // This saves 0.5-30s for non-authenticated users (backend cold start)
+    const token = tokenManager.getToken();
+    if (!token) {
+      setUser(null);
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const userData = await authAPI.me();
+      // Add timeout so users aren't stuck on spinner if backend is slow
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const userData = await authAPI.me({ signal: controller.signal });
+      clearTimeout(timeout);
       setUser(userData);
     } catch {
+      // Token invalid or backend down — clear and show login
+      tokenManager.clearToken();
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -23,6 +41,9 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    // Guard against StrictMode double-mount
+    if (rehydrateRan.current) return;
+    rehydrateRan.current = true;
     rehydrate();
   }, [rehydrate]);
 

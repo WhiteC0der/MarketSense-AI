@@ -9,10 +9,15 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>MarketSense AI | Financial Intelligence Terminal</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <!-- Preconnect to Google Fonts for faster font loading -->
+    <!-- Preconnect to Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <!-- Preconnect to backend API for faster auth calls -->
+    <link rel="preconnect" href="https://marketsense-ai.onrender.com" crossorigin />
+    <!-- Non-blocking font loading: load as print, swap to all on load -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" /></noscript>
     <!-- Inline critical CSS for instant loading indicator -->
     <style>
       html, body, #root { margin: 0; padding: 0; height: 100%; }

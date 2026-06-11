@@ -6,6 +6,11 @@ dotenv.config();
 
 const PORT = process.env.PORT || 3000;
 
+if (!process.env.MONGODB_URL) {
+  console.log("Please provide MONGODB_URI in the environment variables");
+  process.exit(1);
+}
+
 connectDB()
   .then(() => {
 

@@ -158,9 +158,9 @@ export const authAPI = {
     }
   },
 
-  me: async () => {
+  me: async (options = {}) => {
     try {
-      const res = await apiCall(`${API_BASE}/auth/me`);
+      const res = await apiCall(`${API_BASE}/auth/me`, { signal: options.signal });
       if (!res.ok) {
         let errorMsg = 'No active session';
         try {
