@@ -93,14 +93,59 @@ const apiCall = async (url, options = {}) => {
  * Auth API endpoints
  */
 export const authAPI = {
-  register: async (email, password) => {
+  register: async (username, email, password) => {
     try {
       const res = await apiCall(`${API_BASE}/auth/register`, {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ username, email, password }),
       });
       if (!res.ok) {
         let errorMsg = 'Registration failed';
+        try {
+          const error = await res.json();
+          errorMsg = error.error || errorMsg;
+        } catch {
+          errorMsg = `Server error: ${res.status} ${res.statusText}`;
+        }
+        throw new Error(errorMsg);
+      }
+      // Returns { message, user: { userId, email } } — user is NOT logged in yet
+      return res.json();
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  verifyEmail: async (email, otp) => {
+    try {
+      const res = await apiCall(`${API_BASE}/auth/verify-email`, {
+        method: 'POST',
+        body: JSON.stringify({ email, otp }),
+      });
+      if (!res.ok) {
+        let errorMsg = 'Verification failed';
+        try {
+          const error = await res.json();
+          errorMsg = error.error || errorMsg;
+        } catch {
+          errorMsg = `Server error: ${res.status} ${res.statusText}`;
+        }
+        throw new Error(errorMsg);
+      }
+      return res.json();
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  resendOtp: async (email) => {
+    try {
+      const res = await apiCall(`${API_BASE}/auth/resend-otp`, {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) {
+        let errorMsg = 'Failed to resend OTP';
         try {
           const error = await res.json();
           errorMsg = error.error || errorMsg;
@@ -133,9 +178,9 @@ export const authAPI = {
       }
       const data = await res.json();
 
-      // Store token for mobile browsers that block cross-origin cookies
-      if (data.token) {
-        tokenManager.setToken(data.token);
+      // Backend returns accessToken (not token)
+      if (data.accessToken) {
+        tokenManager.setToken(data.accessToken);
       }
 
       return data;
@@ -160,7 +205,7 @@ export const authAPI = {
 
   me: async (options = {}) => {
     try {
-      const res = await apiCall(`${API_BASE}/auth/me`, { signal: options.signal });
+      const res = await apiCall(`${API_BASE}/auth/get-me`, { signal: options.signal });
       if (!res.ok) {
         let errorMsg = 'No active session';
         try {

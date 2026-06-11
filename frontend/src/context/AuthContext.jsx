@@ -6,6 +6,8 @@ const AuthContext = createContext(undefined);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Pending verification state (after register, before OTP verify)
+  const [pendingVerification, setPendingVerification] = useState(null);
   // Prevent rehydrate from running if login/register is in progress
   const authInProgress = useRef(false);
   // Prevent double-mount in StrictMode from firing two /auth/me calls
@@ -66,22 +68,47 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const register = useCallback(async (email, password) => {
+  // Register now only sends OTP — does NOT auto-login
+  // Returns { email } so the UI can show the OTP verification form
+  const register = useCallback(async (username, email, password) => {
     authInProgress.current = true;
     try {
-      await authAPI.register(email, password);
-      const loginData = await authAPI.login(email, password);
-      if (loginData?.user) {
-        setUser(loginData.user);
-      } else {
-        const userData = await authAPI.me();
-        setUser(userData);
-      }
+      await authAPI.register(username, email, password);
+      // Set pending verification state so UI shows OTP form
+      setPendingVerification({ email, password });
+      return { email };
     } catch (error) {
       throw error;
     } finally {
       authInProgress.current = false;
     }
+  }, []);
+
+  // Verify OTP and then auto-login
+  const verifyEmail = useCallback(async (email, otp) => {
+    authInProgress.current = true;
+    try {
+      await authAPI.verifyEmail(email, otp);
+      // Auto-login after successful verification
+      if (pendingVerification?.password) {
+        const loginData = await authAPI.login(email, pendingVerification.password);
+        if (loginData?.user) {
+          setUser(loginData.user);
+        } else {
+          const userData = await authAPI.me();
+          setUser(userData);
+        }
+      }
+      setPendingVerification(null);
+    } catch (error) {
+      throw error;
+    } finally {
+      authInProgress.current = false;
+    }
+  }, [pendingVerification]);
+
+  const clearPendingVerification = useCallback(() => {
+    setPendingVerification(null);
   }, []);
 
   const logout = useCallback(async () => {
@@ -98,8 +125,11 @@ export function AuthProvider({ children }) {
         user,
         isLoading,
         isAuthenticated: !!user,
+        pendingVerification,
         login,
         register,
+        verifyEmail,
+        clearPendingVerification,
         logout,
         rehydrate,
       }}

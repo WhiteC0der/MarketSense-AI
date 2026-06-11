@@ -316,3 +316,34 @@ export const verifyEmail = async (req, res) => {
     }
 };
 
+// api/v1/auth/resend-otp
+export const resendOtp = async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ error: 'No account found with this email.' });
+        if (user.isVerified) return res.status(400).json({ error: 'Email is already verified.' });
+
+        // Delete old OTPs for this user
+        await Otp.deleteMany({ user: user._id });
+
+        const otp = generateOtp();
+        const htmlOtp = getOtpHtml(otp);
+
+        await sendEmail(email, "OTP for verification", null, htmlOtp);
+
+        const otpObj = new Otp({
+            email,
+            user: user._id,
+            otpHash: crypto.createHash('sha256').update(otp).digest('hex')
+        });
+
+        await otpObj.save();
+
+        return res.status(200).json({ message: 'OTP resent successfully!' });
+    } catch (error) {
+        console.error("Resend OTP Error:", error);
+        res.status(500).json({ error: 'Server error while resending OTP.' });
+    }
+};
