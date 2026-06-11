@@ -15,7 +15,11 @@ const otpSchema = new mongoose.Schema({
         type: String,
         required: [true,"otpHash is required"]
     },
-    
+    createdAt: {
+        type: Date,
+        default: Date.now,
+        expires: 300 // MongoDB auto-deletes after 300 seconds (5 minutes)
+    },
 });
 
 const Otp = mongoose.model('Otp', otpSchema);
