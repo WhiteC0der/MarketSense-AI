@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Mail, Lock, Eye, EyeOff, Sparkles, ArrowRight, Loader2, CheckCircle2, XCircle, AlertCircle, WifiOff, RefreshCw, User, ArrowLeft, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { authAPI } from '@/lib/api';
 
 // Validation helpers
 const validators = {
@@ -96,8 +97,7 @@ function OtpVerification({ email, onVerify, onBack }) {
     setResendMessage('');
     setError('');
     try {
-      const { resendOtp } = await import('@/lib/api').then(m => ({ resendOtp: m.authAPI.resendOtp }));
-      await resendOtp(email);
+      await authAPI.resendOtp(email);
       setResendCooldown(60);
       setOtp(['', '', '', '']);
       setResendMessage('A new OTP has been sent to your email!');
