@@ -66,12 +66,15 @@ export const tokenManager = {
  * Make authenticated API calls
  * Sends both Authorization header AND credentials cookie for maximum compatibility
  */
+let isRefreshing = false;
+let refreshPromise = null;
+
 const apiCall = async (url, options = {}) => {
   try {
     const token = tokenManager.getToken();
     const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
-    const response = await fetch(url, {
+    let response = await fetch(url, {
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
@@ -80,6 +83,58 @@ const apiCall = async (url, options = {}) => {
       },
       ...options,
     });
+
+    // Check for 401 Unauthorized, avoid infinite loops by checking _retry flag
+    // Also ignore auth endpoints to prevent refreshing during login/register/refresh
+    if (
+      response.status === 401 &&
+      !options._retry &&
+      !url.includes('/auth/login') &&
+      !url.includes('/auth/register') &&
+      !url.includes('/auth/refresh-token')
+    ) {
+      options._retry = true;
+
+      // Handle concurrent 401s gracefully with a singleton promise
+      if (!isRefreshing) {
+        isRefreshing = true;
+        refreshPromise = fetch(`${API_BASE}/auth/refresh-token`, {
+          method: 'POST',
+          credentials: 'include', // Sends the HTTP-only refresh token cookie
+        }).then(async (res) => {
+          if (!res.ok) throw new Error('Refresh token invalid');
+          const data = await res.json();
+          if (data.token) {
+            tokenManager.setToken(data.token);
+            return data.token;
+          }
+          throw new Error('No token returned');
+        }).finally(() => {
+          isRefreshing = false;
+          refreshPromise = null;
+        });
+      }
+
+      try {
+        const newToken = await refreshPromise;
+        // Retry original request with new token
+        const newAuthHeaders = { Authorization: `Bearer ${newToken}` };
+        response = await fetch(url, {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...newAuthHeaders,
+            ...options.headers,
+          },
+          ...options,
+        });
+      } catch (refreshError) {
+        // Refresh failed (e.g. refresh token expired)
+        tokenManager.clearToken();
+        // The backend will just reject the invalid cookie on next login/refresh.
+        // Returning the 401 response so the calling component can handle the logout.
+      }
+    }
 
     return response;
   } catch (error) {
