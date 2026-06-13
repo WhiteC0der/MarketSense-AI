@@ -13,7 +13,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
  */
 const runVectorSearch = async (queryVector, ticker) => {
     // ── Step 1: Ask Pinecone for the closest vectors for this ticker ──────────
-    const matches = await queryVectors(queryVector, ticker, 3);
+    const matches = await queryVectors(queryVector, ticker, 5);
     // matches = [{ id: "64abc...", score: 0.91 }, { id: "64def...", score: 0.87 }, ...]
 
     if (!matches || matches.length === 0) return [];
