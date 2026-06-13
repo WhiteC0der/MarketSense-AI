@@ -46,16 +46,16 @@ export const register = async (req, res) => {
         //     process.env.JWT_SECRET,
         //     { expiresIn: '7d' }
         // );
-        
+
         // const newSession = new Session({
         //     user: newUser._id,
         //     refreshToken: crypto.createHash('sha256').update(refreshToken).digest('hex'),
         //     UserAgent: req.headers['user-agent'],
         //     ip: req.ip
         // });
-        
+
         // await newSession.save();
-        
+
         // const accessToken = jwt.sign(
         //     { userId: newUser._id },
         //     process.env.JWT_SECRET,
@@ -76,10 +76,10 @@ export const register = async (req, res) => {
         // });
 
         // Code withOtp
-        const otp= generateOtp();
-        const htmlOtp= getOtpHtml(otp);
+        const otp = generateOtp();
+        const htmlOtp = getOtpHtml(otp);
 
-        await sendEmail(email,"OTP for verification",null,htmlOtp);
+        await sendEmail(email, "OTP for verification", null, htmlOtp);
         const otpObj = new Otp({
             email,
             user: newUser._id,
@@ -95,6 +95,7 @@ export const register = async (req, res) => {
 
     } catch (error) {
         console.error("Registration Error:", error);
+        await User.findByIdAndDelete(newUser._id);
         res.status(500).json({ error: 'Server error during registration.' });
     }
 };
@@ -105,9 +106,9 @@ export const login = async (req, res) => {
         const { email, password } = req.body;
 
         const user = await User.findOne({ email });
-        
+
         if (!user) return res.status(401).json({ error: 'Invalid email or password' });
-        if(!user.isVerified) return res.status(401).json({ error: 'User not verified' });
+        if (!user.isVerified) return res.status(401).json({ error: 'User not verified' });
 
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(401).json({ error: 'Invalid email or password' });
@@ -292,19 +293,19 @@ export const refreshToken = async (req, res) => {
 
 export const verifyEmail = async (req, res) => {
     try {
-        const {otp,email}= req.body;
-        
-        const Hashotp= crypto.createHash('sha256').update(otp).digest('hex');
-        
-        const otpDoc = await Otp.findOne({email, otpHash: Hashotp});
+        const { otp, email } = req.body;
+
+        const Hashotp = crypto.createHash('sha256').update(otp).digest('hex');
+
+        const otpDoc = await Otp.findOne({ email, otpHash: Hashotp });
 
         if (!otpDoc) return res.status(401).json({ error: 'Invalid or expired OTP' });
 
-        const user= await User.findOneAndUpdate(
+        const user = await User.findOneAndUpdate(
             otpDoc.user,
-            {isVerified: true}
+            { isVerified: true }
         )
-        await Otp.deleteMany({user: user._id});
+        await Otp.deleteMany({ user: user._id });
 
         return res.status(200).json({
             message: 'Email verified successfully!',

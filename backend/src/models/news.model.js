@@ -22,10 +22,6 @@ const newsSchema = new Schema({
     publishedAt: {
         type: Date,
         required: true
-    },
-    embedding: {
-        type: [Number],
-        required: false
     }
 }, { timestamps: true });
 

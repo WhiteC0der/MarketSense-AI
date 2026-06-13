@@ -3,22 +3,15 @@ import User from '../models/user.model.js';
 
 /**
  * Extract JWT access token from request.
- * Checks (in order): Authorization header, then accessToken cookie.
- * The dual approach ensures compatibility with mobile browsers
- * that block third-party cookies.
+ * The access token is stored in-memory on the client and sent
+ * via the Authorization: Bearer <token> header.
+ * (Only the refresh token is persisted in an httpOnly cookie.)
  */
 const getToken = (req) => {
-    // 1. Check Authorization header first (works on all browsers, cross-origin)
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
         return authHeader.split(' ')[1];
     }
-
-    // 2. Fallback to accessToken cookie (same-origin only)
-    if (req.cookies && req.cookies.accessToken) {
-        return req.cookies.accessToken;
-    }
-
     return null;
 };
 

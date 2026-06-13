@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { processAndSaveNews } from '../services/aiService.js';
+import { processAndSaveNews } from '../services/ai.service.js';
 
 /**
  * Get top news for a specific ticker

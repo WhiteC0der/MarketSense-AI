@@ -4,6 +4,7 @@ import Header from './Header';
 import ChatMessages from './ChatMessages';
 import ChatInput from './ChatInput';
 import { chatAPI, stockAPI, newsAPI } from '@/lib/api';
+import { resolveTicker } from '@/lib/tickerResolver';
 import { useAuth } from '@/context/AuthContext';
 import { useIsMobile } from '@/hooks/useMobile';
 import { toast } from 'sonner';
@@ -193,8 +194,9 @@ export default function Dashboard() {
 
     setIsScanning(true);
     try {
-      const found = await stockAPI.search(raw);
-      const symbol = found.symbol.toUpperCase();
+      // Resolve company name or ticker to a canonical symbol.
+      // Local map handles popular names instantly; backend API handles the rest.
+      const symbol = await resolveTicker(raw, stockAPI.search);
 
       setCurrentTicker(symbol);
       setTickerInput(symbol);

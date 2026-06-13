@@ -3,7 +3,7 @@ import { getChatHistory, getChatById, sendMessage } from '../controllers/chat.co
 
 const router = express.Router();
 
-// Route handlers
+
 router.get('/history', getChatHistory);
 router.get('/:chatId', getChatById);
 router.post('/', sendMessage);

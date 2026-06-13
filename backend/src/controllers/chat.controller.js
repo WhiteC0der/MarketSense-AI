@@ -1,68 +1,45 @@
 import { GoogleGenAI } from '@google/genai';
 import News from '../models/news.model.js';
 import Conversation from '../models/conversation.model.js';
+import { queryVectors } from '../services/pinecone.service.js';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-const isTickerFilterIndexError = (error) => {
-    const message = String(error?.message || "");
-    return message.includes("needs to be indexed as filter") && message.includes("ticker");
-};
-
+/**
+ * Query Pinecone for the top 3 most semantically similar articles to the query vector,
+ * filtered by ticker. Then fetch full article data from MongoDB using the returned IDs.
+ *
+ * Flow: queryVector → Pinecone (filter: ticker) → [mongoIds] → MongoDB.find → articles
+ */
 const runVectorSearch = async (queryVector, ticker) => {
-    const projectStage = {
-        "$project": {
-            "_id": 0,
-            "headline": 1,
-            "summary": 1,
-            "url": 1,
-            "ticker": 1,
-            "score": { "$meta": "vectorSearchScore" }
-        }
-    };
+    // ── Step 1: Ask Pinecone for the closest vectors for this ticker ──────────
+    const matches = await queryVectors(queryVector, ticker, 3);
+    // matches = [{ id: "64abc...", score: 0.91 }, { id: "64def...", score: 0.87 }, ...]
 
-    try {
-        return await News.aggregate([
-            {
-                "$vectorSearch": {
-                    "index": "vector_index",
-                    "path": "embedding",
-                    "queryVector": queryVector,
-                    "numCandidates": 10,
-                    "limit": 3,
-                    "filter": {
-                        "ticker": ticker.toUpperCase()
-                    }
-                }
-            },
-            projectStage
-        ]);
-    } catch (error) {
-        if (!isTickerFilterIndexError(error)) {
-            throw error;
-        }
+    if (!matches || matches.length === 0) return [];
 
-        const unfilteredResults = await News.aggregate([
-            {
-                "$vectorSearch": {
-                    "index": "vector_index",
-                    "path": "embedding",
-                    "queryVector": queryVector,
-                    "numCandidates": 25,
-                    "limit": 10
-                }
-            },
-            projectStage
-        ]);
+    // ── Step 2: Extract MongoDB IDs and create score lookup map ──────────────
+    const mongoIds = matches.map((m) => m.id);
 
-        const normalizedTicker = ticker.toUpperCase();
-        const tickerMatched = unfilteredResults
-            .filter((doc) => String(doc.ticker || "").toUpperCase() === normalizedTicker)
-            .slice(0, 3)
-            .map(({ ticker: _ticker, ...rest }) => rest);
+    // ── Step 3: Fetch full article data from MongoDB (include _id) ───────────
+    const articles = await News.find({ _id: { $in: mongoIds } })
+        .select('headline summary url _id')
+        .lean();
 
-        return tickerMatched;
-    }
+    const articleMap = new Map(articles.map((art) => [art._id.toString(), art]));
+
+    // ── Step 4: Preserve Pinecone order and correctly attach matching score ──
+    return matches
+        .map((match) => {
+            const article = articleMap.get(match.id);
+            if (!article) return null;
+            const { _id, ...rest } = article;
+            return {
+                ...rest,
+                score: match.score,
+            };
+        })
+        .filter(Boolean);
 };
 
 const getAuthenticatedUserId = (req, res) => {

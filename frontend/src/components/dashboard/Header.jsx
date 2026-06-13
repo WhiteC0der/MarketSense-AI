@@ -43,9 +43,9 @@ function Header({
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
           <input
             type="text"
-            placeholder="Ticker"
+            placeholder="Company or ticker"
             value={tickerInput}
-            onChange={(e) => onTickerInputChange(e.target.value.toUpperCase())}
+            onChange={(e) => onTickerInputChange(e.target.value)}
             onKeyDown={handleKeyPress}
             className="w-full bg-zinc-900/60 border border-zinc-800 rounded-lg pl-7 pr-2 py-2 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 transition-all disabled:opacity-50 font-mono"
             disabled={isSearching}
@@ -93,9 +93,9 @@ function Header({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 flex-shrink-0" />
             <input
               type="text"
-              placeholder="Enter ticker e.g. TSLA"
+              placeholder="Company name or ticker e.g. Apple, TSLA"
               value={tickerInput}
-              onChange={(e) => onTickerInputChange(e.target.value.toUpperCase())}
+              onChange={(e) => onTickerInputChange(e.target.value)}
               onKeyDown={handleKeyPress}
               className="w-full bg-zinc-900/60 border border-zinc-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 transition-all disabled:opacity-50 font-mono tracking-wider"
               disabled={isSearching}
