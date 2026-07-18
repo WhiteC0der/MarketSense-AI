@@ -12,6 +12,7 @@ function Header({
   isSearching,
   isMobile,
   onMenuToggle,
+  isLiveConnected = false,
 }) {
   const handleSearchClick = useCallback(() => {
     if (tickerInput.trim()) {
@@ -73,8 +74,8 @@ function Header({
           }`}
         >
           <div className="relative flex h-1.5 w-1.5 flex-shrink-0">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-teal-500"></span>
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isLiveConnected ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
+            <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${isLiveConnected ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
           </div>
           <span className="font-mono text-teal-400 font-semibold">{currentTicker}</span>
           {currentPrice && (
@@ -125,14 +126,16 @@ function Header({
         >
           {/* Pulsing indicator */}
           <div className="relative flex h-2 w-2 flex-shrink-0">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500"></span>
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isLiveConnected ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
+            <span className={`relative inline-flex rounded-full h-2 w-2 ${isLiveConnected ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
           </div>
-          <Activity className="w-4 h-4 text-teal-400 flex-shrink-0" />
-          <span className="text-xs font-mono tracking-widest uppercase text-zinc-400 hidden sm:inline">Live</span>
+          <Activity className={`w-4 h-4 flex-shrink-0 ${isLiveConnected ? 'text-emerald-400' : 'text-amber-400'}`} />
+          <span className={`text-xs font-mono tracking-widest uppercase hidden sm:inline ${isLiveConnected ? 'text-emerald-400' : 'text-amber-400'}`}>
+            {isLiveConnected ? 'Live' : 'Delayed'}
+          </span>
           <span className="text-sm font-medium text-white">{currentTicker}</span>
           {currentPrice && (
-            <span className="text-sm font-semibold text-teal-400">
+            <span className="text-sm font-semibold text-teal-400 transition-all duration-300">
               ${currentPrice.toFixed(2)}
             </span>
           )}

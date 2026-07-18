@@ -1,11 +1,20 @@
-import YahooFinance from 'yahoo-finance2';
 import axios from 'axios';
 import RequestQueue from '../utils/requestQueue.js';
 
-const yahooFinance = new YahooFinance({
-    suppressNotices: ['yahooSurvey', 'ripHistorical'] 
+// --- Alpaca Market Data API (primary) ---
+const ALPACA_API_KEY_ID = process.env.ALPACA_API_KEY_ID;
+const ALPACA_SECRET_KEY = process.env.ALPACA_SECRET_KEY;
+
+const alpacaDataApi = axios.create({
+    baseURL: 'https://data.alpaca.markets/v2',
+    timeout: 12000,
+    headers: {
+        'APCA-API-KEY-ID': ALPACA_API_KEY_ID || '',
+        'APCA-API-SECRET-KEY': ALPACA_SECRET_KEY || '',
+    },
 });
 
+// --- Yahoo Finance (fallback for search + chart/quote fallback) ---
 const YAHOO_PUBLIC_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
     'Accept': 'application/json,text/plain,*/*',
@@ -19,154 +28,146 @@ const yahooPublicApi = axios.create({
     headers: YAHOO_PUBLIC_HEADERS
 });
 
-const yahooPublicApiBackup = axios.create({
-    baseURL: 'https://query2.finance.yahoo.com',
-    timeout: 12000,
-    headers: YAHOO_PUBLIC_HEADERS
-});
+// --- Finnhub (fallback for search) ---
+const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
+const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
 
 // Queue with 1500ms delay between requests to avoid Yahoo Finance rate limiting
 const apiQueue = new RequestQueue(1500);
 
+// --- Cache ---
 const cacheStore = new Map();
-const SEARCH_CACHE_TTL_MS = Number(process.env.STOCK_SEARCH_CACHE_TTL_MS || 10 * 60 * 1000);
-const QUOTE_CACHE_TTL_MS = Number(process.env.STOCK_QUOTE_CACHE_TTL_MS || 60 * 1000);
-const CHART_CACHE_TTL_MS = Number(process.env.STOCK_CHART_CACHE_TTL_MS || 10 * 60 * 1000);
-const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
-const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
-const USE_FINNHUB_FALLBACK =
-    process.env.STOCK_USE_FINNHUB_FALLBACK === 'false' ? false : Boolean(FINNHUB_API_KEY);
-const publicEndpointsOnlyEnv = process.env.YAHOO_PUBLIC_ENDPOINTS_ONLY;
-// On Render/production, prioritize Finnhub since Yahoo gets blocked
-const isRender = process.env.RENDER === 'true' || process.env.RENDER_EXTERNAL_HOSTNAME;
-const USE_PUBLIC_YAHOO_ENDPOINTS_ONLY =
-    isRender ? true : (
-        typeof publicEndpointsOnlyEnv === 'string'
-            ? publicEndpointsOnlyEnv === 'true'
-            : process.env.NODE_ENV === 'production'
-    );
+const SEARCH_CACHE_TTL = 10 * 60 * 1000;
+const QUOTE_CACHE_TTL = 60 * 1000;
+const CHART_CACHE_TTL = 10 * 60 * 1000;
 
-const getCachedValue = (key) => {
-    const found = cacheStore.get(key);
-
-    if (!found) return null;
-    if (found.expiresAt <= Date.now()) {
-        cacheStore.delete(key);
-        return null;
-    }
-
-    return found.value;
+const getCache = (key) => {
+    const entry = cacheStore.get(key);
+    if (!entry) return null;
+    if (entry.expiresAt <= Date.now()) { cacheStore.delete(key); return null; }
+    return entry.value;
 };
 
-const setCachedValue = (key, value, ttlMs) => {
-    cacheStore.set(key, {
-        value,
-        expiresAt: Date.now() + ttlMs
+const setCache = (key, value, ttl) => {
+    cacheStore.set(key, { value, expiresAt: Date.now() + ttl });
+};
+
+/**
+ * Try a list of async functions in order. Return the first success.
+ */
+const tryInOrder = async (fns) => {
+    let lastError;
+    for (const fn of fns) {
+        if (!fn) continue;
+        try {
+            return await fn();
+        } catch (err) {
+            lastError = err;
+        }
+    }
+    throw lastError;
+};
+
+// =====================
+// Data fetchers
+// =====================
+
+// --- Quote ---
+
+const quoteFromAlpaca = async (ticker) => {
+    const { data } = await alpacaDataApi.get(`/stocks/${ticker}/trades/latest`, {
+        params: { feed: 'iex' },
     });
-};
-
-const isRateLimitError = (error) => {
-    const message = String(error?.message || '').toLowerCase();
-    const status = error?.response?.status || error?.status || error?.statusCode;
-
-    return status === 429 || message.includes('too many requests') || message.includes('failed to get crumb');
-};
-
-const isPublicAccessBlockedError = (error) => {
-    const status = error?.response?.status || error?.status || error?.statusCode;
-    return status === 401 || status === 403 || status === 429;
-};
-
-const requestYahooPublic = async (path, params) => {
-    try {
-        return await yahooPublicApi.get(path, { params });
-    } catch (error) {
-        if (!isPublicAccessBlockedError(error)) throw error;
-
-        return yahooPublicApiBackup.get(path, { params });
+    const price = Number(data?.trade?.p);
+    if (!Number.isFinite(price) || price <= 0) {
+        throw new Error(`No quote for ${ticker} from Alpaca`);
     }
+    return { regularMarketPrice: price };
 };
 
-const requestFinnhub = async (path, params = {}) => {
-    const { data } = await axios.get(`${FINNHUB_BASE_URL}${path}`, {
-        timeout: 12000,
+const quoteFromYahoo = async (ticker) => {
+    const { data } = await yahooPublicApi.get('/v7/finance/quote', {
+        params: { symbols: ticker }
+    });
+    const quote = data?.quoteResponse?.result?.[0];
+    if (!quote?.regularMarketPrice) {
+        throw new Error(`No quote for ${ticker} from Yahoo`);
+    }
+    return { regularMarketPrice: quote.regularMarketPrice };
+};
+
+// --- Chart ---
+
+const chartFromAlpaca = async (ticker) => {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const { data } = await alpacaDataApi.get(`/stocks/${ticker}/bars`, {
         params: {
-            ...params,
-            token: FINNHUB_API_KEY
-        }
+            timeframe: '1Day',
+            start: thirtyDaysAgo.toISOString(),
+            end: now.toISOString(),
+            limit: 50,
+            adjustment: 'split',
+            feed: 'iex',
+        },
     });
 
-    return data;
-};
-
-const getWithFallback = async ({ cacheKey, ttlMs, primaryFn, fallbackFn, secondaryFn }) => {
-    const cached = getCachedValue(cacheKey);
-    if (cached) return cached;
-
-    let result;
-
-    if (USE_PUBLIC_YAHOO_ENDPOINTS_ONLY) {
-        try {
-            result = await fallbackFn();
-        } catch (error) {
-            if (!secondaryFn || !isPublicAccessBlockedError(error)) throw error;
-
-            console.warn('Yahoo public endpoint blocked. Falling back to Finnhub.', {
-                cacheKey,
-                status: error?.response?.status || error?.status || error?.statusCode,
-                message: error?.message
-            });
-
-            result = await secondaryFn();
-        }
-    } else {
-        try {
-            result = await primaryFn();
-        } catch (error) {
-            if (!isRateLimitError(error)) throw error;
-
-            console.warn('Primary Yahoo client was rate-limited. Falling back to public endpoint.', {
-                cacheKey,
-                status: error?.response?.status || error?.status || error?.statusCode,
-                message: error?.message
-            });
-
-            try {
-                result = await fallbackFn();
-            } catch (fallbackError) {
-                if (!secondaryFn || !isPublicAccessBlockedError(fallbackError)) throw fallbackError;
-
-                console.warn('Yahoo public endpoint blocked after primary fallback. Falling back to Finnhub.', {
-                    cacheKey,
-                    status: fallbackError?.response?.status || fallbackError?.status || fallbackError?.statusCode,
-                    message: fallbackError?.message
-                });
-
-                result = await secondaryFn();
-            }
-        }
+    const bars = Array.isArray(data?.bars) ? data.bars : [];
+    if (bars.length === 0) {
+        throw new Error(`No chart data for ${ticker} from Alpaca`);
     }
 
-    setCachedValue(cacheKey, result, ttlMs);
-    return result;
+    return {
+        quotes: bars
+            .map((bar) => {
+                const close = Number(bar.c);
+                if (!Number.isFinite(close) || close <= 0) return null;
+                return { date: new Date(bar.t), close };
+            })
+            .filter(Boolean),
+    };
 };
 
-const searchFromPublicEndpoint = async (query) => {
-    const { data } = await requestYahooPublic('/v1/finance/search', {
-        q: query,
-        quotesCount: 25,
-        newsCount: 0
+const chartFromYahoo = async (ticker) => {
+    const { data } = await yahooPublicApi.get(`/v8/finance/chart/${ticker}`, {
+        params: { interval: '1d', range: '1mo', includePrePost: false }
     });
 
+    const result = data?.chart?.result?.[0];
+    const timestamps = result?.timestamp || [];
+    const closes = result?.indicators?.quote?.[0]?.close || [];
+
+    const quotes = timestamps
+        .map((ts, i) => {
+            const close = closes[i];
+            if (typeof close !== 'number' || !Number.isFinite(close) || close <= 0) return null;
+            return { date: new Date(ts * 1000), close };
+        })
+        .filter(Boolean);
+
+    if (quotes.length === 0) throw new Error(`No chart data for ${ticker} from Yahoo`);
+    return { quotes };
+};
+
+// --- Search ---
+
+const searchFromYahoo = async (query) => {
+    const { data } = await yahooPublicApi.get('/v1/finance/search', {
+        params: { q: query, quotesCount: 25, newsCount: 0 }
+    });
     return { quotes: Array.isArray(data?.quotes) ? data.quotes : [] };
 };
 
 const searchFromFinnhub = async (query) => {
-    const data = await requestFinnhub('/search', { q: query });
-    const resultList = Array.isArray(data?.result) ? data.result : [];
-
+    const { data } = await axios.get(`${FINNHUB_BASE_URL}/search`, {
+        timeout: 12000,
+        params: { q: query, token: FINNHUB_API_KEY }
+    });
+    const results = Array.isArray(data?.result) ? data.result : [];
     return {
-        quotes: resultList
+        quotes: results
             .filter((item) => typeof item?.symbol === 'string' && item.symbol.trim().length > 0)
             .map((item) => ({
                 symbol: item.symbol,
@@ -178,124 +179,37 @@ const searchFromFinnhub = async (query) => {
     };
 };
 
-const quoteFromPublicEndpoint = async (ticker) => {
-    const { data } = await requestYahooPublic('/v7/finance/quote', {
-        symbols: ticker
-    });
+// =====================
+// Search scoring
+// =====================
 
-    const quote = data?.quoteResponse?.result?.[0];
-    if (!quote) {
-        throw new Error(`No quote data found for ${ticker}`);
-    }
+const normalize = (s = '') => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+const isSimpleTicker = (s = '') => /^[A-Z]{1,5}$/.test(s);
+const isDerived = (s = '') => /[.=]/.test(s) || /\d/.test(s);
+const isGoodExchange = (e = '') => ['NMS', 'NYQ', 'ASE', 'BTS'].includes(e);
 
-    return {
-        regularMarketPrice: quote.regularMarketPrice
-    };
-};
-
-const quoteFromFinnhub = async (ticker) => {
-    const data = await requestFinnhub('/quote', { symbol: ticker });
-    const marketPrice = Number(data?.c);
-
-    if (!Number.isFinite(marketPrice) || marketPrice <= 0) {
-        throw new Error(`No quote data found for ${ticker} from Finnhub`);
-    }
-
-    return {
-        regularMarketPrice: marketPrice
-    };
-};
-
-const chartFromPublicEndpoint = async (ticker) => {
-    const { data } = await requestYahooPublic(`/v8/finance/chart/${ticker}`, {
-        interval: '1d',
-        range: '1mo',
-        includePrePost: false,
-        events: 'div,splits'
-    });
-
-    const result = data?.chart?.result?.[0];
-    const timestamps = result?.timestamp || [];
-    const closes = result?.indicators?.quote?.[0]?.close || [];
-
-    const quotes = timestamps
-        .map((timestamp, index) => {
-            const close = closes[index];
-            if (typeof close !== 'number' || Number.isNaN(close)) return null;
-
-            return {
-                date: new Date(timestamp * 1000),
-                close
-            };
-        })
-        .filter(Boolean);
-
-    return { quotes };
-};
-
-const chartFromFinnhub = async (ticker) => {
-    const nowSeconds = Math.floor(Date.now() / 1000);
-    const fromSeconds = nowSeconds - 30 * 24 * 60 * 60;
-
-    const data = await requestFinnhub('/stock/candle', {
-        symbol: ticker,
-        resolution: 'D',
-        from: fromSeconds,
-        to: nowSeconds
-    });
-
-    if (data?.s !== 'ok' || !Array.isArray(data?.t) || !Array.isArray(data?.c)) {
-        throw new Error(`No chart data found for ${ticker} from Finnhub`);
-    }
-
-    const quotes = data.t
-        .map((timestamp, index) => {
-            const close = Number(data.c[index]);
-            if (!Number.isFinite(close) || close <= 0) return null;
-
-            return {
-                date: new Date(timestamp * 1000),
-                close
-            };
-        })
-        .filter(Boolean);
-
-    return { quotes };
-};
-
-const normalizeSearchText = (value = '') =>
-    value.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-const isPreferredCommonStockSymbol = (symbol = '') => /^[A-Z]{1,5}$/.test(symbol);
-
-const isLikelyDerivedOrCrossListedSymbol = (symbol = '') =>
-    /[.=]/.test(symbol) || /\d/.test(symbol);
-
-const isPreferredExchange = (exchange = '') =>
-    ['NMS', 'NYQ', 'ASE', 'BTS'].includes(exchange);
-
-const MINIMUM_ACCEPTABLE_MATCH_SCORE = 70;
-
-const scoreQuoteMatch = (quote, rawQuery) => {
-    const query = normalizeSearchText(rawQuery);
-    const symbol = normalizeSearchText(quote.symbol || '');
-    const shortName = normalizeSearchText(quote.shortname || '');
-    const longName = normalizeSearchText(quote.longname || '');
+const scoreMatch = (quote, rawQuery) => {
+    const q = normalize(rawQuery);
+    const sym = normalize(quote.symbol || '');
+    const short = normalize(quote.shortname || '');
+    const long = normalize(quote.longname || '');
 
     let score = 0;
-
     if (quote.quoteType === 'EQUITY') score += 50;
-    if (isPreferredCommonStockSymbol(quote.symbol || '')) score += 20;
-    if (isPreferredExchange(quote.exchange || '')) score += 10;
-    if (isLikelyDerivedOrCrossListedSymbol(quote.symbol || '')) score -= 30;
-    if (symbol === query) score += 100;
-    if (shortName === query || longName === query) score += 90;
-    if (symbol.startsWith(query)) score += 40;
-    if (shortName.startsWith(query) || longName.startsWith(query)) score += 35;
-    if (shortName.includes(query) || longName.includes(query)) score += 20;
-
+    if (isSimpleTicker(quote.symbol || '')) score += 20;
+    if (isGoodExchange(quote.exchange || '')) score += 10;
+    if (isDerived(quote.symbol || '')) score -= 30;
+    if (sym === q) score += 100;
+    if (short === q || long === q) score += 90;
+    if (sym.startsWith(q)) score += 40;
+    if (short.startsWith(q) || long.startsWith(q)) score += 35;
+    if (short.includes(q) || long.includes(q)) score += 20;
     return score;
 };
+
+// =====================
+// Route handlers
+// =====================
 
 /**
  * Search for a stock by ticker or company name
@@ -303,43 +217,36 @@ const scoreQuoteMatch = (quote, rawQuery) => {
 export const searchStock = async (req, res) => {
     try {
         const query = req.params.query.trim();
+        const cacheKey = `search:${query.toLowerCase()}`;
 
-        const result = await getWithFallback({
-            cacheKey: `search:${query.toLowerCase()}`,
-            ttlMs: SEARCH_CACHE_TTL_MS,
-            primaryFn: () => apiQueue.add(() => yahooFinance.search(query)),
-            fallbackFn: () => apiQueue.add(() => searchFromPublicEndpoint(query)),
-            secondaryFn: USE_FINNHUB_FALLBACK ? () => apiQueue.add(() => searchFromFinnhub(query)) : undefined
-        });
-        
-        if (result.quotes && result.quotes.length > 0) {
-            const equityQuotes = result.quotes.filter((quote) => quote.quoteType === 'EQUITY');
+        let result = getCache(cacheKey);
+        if (!result) {
+            result = await tryInOrder([
+                () => apiQueue.add(() => searchFromYahoo(query)),
+                FINNHUB_API_KEY ? () => apiQueue.add(() => searchFromFinnhub(query)) : null,
+            ]);
+            setCache(cacheKey, result, SEARCH_CACHE_TTL);
+        }
 
-            if (equityQuotes.length === 0) {
-                return res.status(404).json({ error: "No stock match found. Please type a proper company name or exact stock ticker." });
-            }
-
-            const preferredCommonStocks = equityQuotes.filter(
-                (quote) => isPreferredCommonStockSymbol(quote.symbol || '') && !isLikelyDerivedOrCrossListedSymbol(quote.symbol || '')
-            );
-
-            const candidates = preferredCommonStocks.length > 0 ? preferredCommonStocks : equityQuotes;
-
-            const rankedQuotes = [...candidates].sort(
-                (left, right) => scoreQuoteMatch(right, query) - scoreQuoteMatch(left, query)
-            );
-
-            const bestMatch = rankedQuotes[0];
-            const bestScore = scoreQuoteMatch(bestMatch, query);
-
-            if (bestScore < MINIMUM_ACCEPTABLE_MATCH_SCORE) {
-                return res.status(404).json({ error: "No stock match found. Please type a proper company name or exact stock ticker." });
-            }
-
-            return res.status(200).json({ symbol: bestMatch.symbol });
-        } else {
+        if (!result.quotes || result.quotes.length === 0) {
             return res.status(404).json({ error: "No stock match found. Please type a proper company name or exact stock ticker." });
         }
+
+        const equities = result.quotes.filter((q) => q.quoteType === 'EQUITY');
+        if (equities.length === 0) {
+            return res.status(404).json({ error: "No stock match found. Please type a proper company name or exact stock ticker." });
+        }
+
+        const preferred = equities.filter((q) => isSimpleTicker(q.symbol || '') && !isDerived(q.symbol || ''));
+        const candidates = preferred.length > 0 ? preferred : equities;
+        const ranked = [...candidates].sort((a, b) => scoreMatch(b, query) - scoreMatch(a, query));
+        const best = ranked[0];
+
+        if (scoreMatch(best, query) < 70) {
+            return res.status(404).json({ error: "No stock match found. Please type a proper company name or exact stock ticker." });
+        }
+
+        return res.status(200).json({ symbol: best.symbol });
     } catch (error) {
         console.error("Search API Error:", error.message);
         res.status(500).json({ error: "Failed to resolve ticker." });
@@ -353,59 +260,46 @@ export const getStockData = async (req, res) => {
     try {
         const ticker = req.params.ticker.toUpperCase();
 
-        const quote = await getWithFallback({
-            cacheKey: `quote:${ticker}`,
-            ttlMs: QUOTE_CACHE_TTL_MS,
-            primaryFn: () => apiQueue.add(() => yahooFinance.quote(ticker)),
-            fallbackFn: () => apiQueue.add(() => quoteFromPublicEndpoint(ticker)),
-            secondaryFn: USE_FINNHUB_FALLBACK ? () => apiQueue.add(() => quoteFromFinnhub(ticker)) : undefined
-        });
+        // Quote: Alpaca → Yahoo
+        let quote = getCache(`quote:${ticker}`);
+        if (!quote) {
+            quote = await tryInOrder([
+                () => quoteFromAlpaca(ticker),
+                () => apiQueue.add(() => quoteFromYahoo(ticker)),
+            ]);
+            setCache(`quote:${ticker}`, quote, QUOTE_CACHE_TTL);
+        }
         const currentPrice = quote.regularMarketPrice;
 
-        const chartResult = await getWithFallback({
-            cacheKey: `chart:${ticker}`,
-            ttlMs: CHART_CACHE_TTL_MS,
-            primaryFn: () => {
-                const today = new Date();
-                const thirtyDaysAgo = new Date(today);
-                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        // Chart: Alpaca → Yahoo
+        let chartResult = getCache(`chart:${ticker}`);
+        if (!chartResult) {
+            chartResult = await tryInOrder([
+                () => chartFromAlpaca(ticker),
+                () => apiQueue.add(() => chartFromYahoo(ticker)),
+            ]);
+            setCache(`chart:${ticker}`, chartResult, CHART_CACHE_TTL);
+        }
 
-                const period1 = thirtyDaysAgo.toISOString().split('T')[0];
-                const period2 = today.toISOString().split('T')[0];
-
-                return apiQueue.add(() =>
-                    yahooFinance.chart(ticker, {
-                        period1,
-                        period2,
-                        interval: '1d'
-                    })
-                );
-            },
-            fallbackFn: () => apiQueue.add(() => chartFromPublicEndpoint(ticker)),
-            secondaryFn: USE_FINNHUB_FALLBACK ? () => apiQueue.add(() => chartFromFinnhub(ticker)) : undefined
-        });
-
-        if (!chartResult || !chartResult.quotes || chartResult.quotes.length === 0) {
+        if (!chartResult?.quotes?.length) {
             return res.status(404).json({ error: "No chart data found." });
         }
 
-        const formattedChartData = chartResult.quotes.map(day => ({
-            date: day.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            price: Number((day.close || 0).toFixed(2)) 
-        }));
+        const chartData = chartResult.quotes
+            .filter(day => typeof day.close === 'number' && day.close > 0)
+            .map(day => ({
+                date: day.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                price: Number(day.close.toFixed(2))
+            }));
 
-        formattedChartData.push({
+        chartData.push({
             date: 'Live',
             price: Number(currentPrice.toFixed(2))
         });
 
-        res.status(200).json({
-            currentPrice: currentPrice,
-            chartData: formattedChartData
-        });
-
+        res.status(200).json({ currentPrice, chartData });
     } catch (error) {
-        console.error("Yahoo Finance API Error:", error.message);
-        res.status(500).json({ error: "Failed to fetch live stock data" });
+        console.error("Stock Data Error:", error.message);
+        res.status(500).json({ error: "Failed to fetch stock data." });
     }
 };

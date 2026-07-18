@@ -30,18 +30,25 @@ const upsertVector = async (mongoId, vector, metadata) => {
 
 /**
  * Query Pinecone for the most semantically similar vectors to a given query vector.
- * Filters by ticker so only articles for the relevant stock are returned.
+ * Filters by ticker and optionally by a publishedAt date cutoff.
  *
- * @param {number[]} queryVector - The embedded user question (3072 dimensions)
- * @param {string}   ticker      - Stock ticker to filter on (e.g. "AAPL")
- * @param {number}   topK        - Number of results to return (default: 3)
+ * @param {number[]} queryVector  - The embedded user question (3072 dimensions)
+ * @param {string}   ticker       - Stock ticker to filter on (e.g. "AAPL")
+ * @param {number}   topK         - Number of results to return (default: 10)
+ * @param {number|null} cutoff    - Unix timestamp (seconds). Only return articles published after this. null = no date filter.
  * @returns {Array<{ id: string, score: number }>} - Pinecone matches with MongoDB IDs
  */
-const queryVectors = async (queryVector, ticker, topK = 3) => {
+const queryVectors = async (queryVector, ticker, topK = 10, cutoff = null) => {
+    // Build the metadata filter — always filter by ticker, optionally by date
+    const filter = { ticker: { $eq: ticker.toUpperCase() } };
+    if (cutoff !== null) {
+        filter.publishedAt = { $gte: cutoff };
+    }
+
     const result = await index.query({
         vector: queryVector,
         topK,
-        filter: { ticker: { $eq: ticker.toUpperCase() } }, // Pinecone metadata filter
+        filter,
         includeMetadata: false, // We'll fetch full data from MongoDB — no need for metadata here
     });
 

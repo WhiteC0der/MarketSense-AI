@@ -16,6 +16,7 @@ const defaultAllowedOrigins = [
   "http://localhost:3000",
   "http://localhost:3001",
   "https://market-sense-ai.vercel.app",
+  "/"
 ];
 
 const envOrigins = (process.env.FRONTEND_URLS || "")
@@ -23,7 +24,7 @@ const envOrigins = (process.env.FRONTEND_URLS || "")
   .map((origin) => origin.trim())
   .filter(Boolean);
 
-const allowedOrigins = new Set([...defaultAllowedOrigins, ...envOrigins]);
+export const allowedOrigins = new Set([...defaultAllowedOrigins, ...envOrigins]);
 
 const corsOptions = {
   origin: (origin, callback) => {

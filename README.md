@@ -2,7 +2,7 @@
 
 **AI-Powered Financial Intelligence Platform**
 
-Real-time stock analysis powered by **Google Gemini AI** and **MongoDB Vector Search**. Ask natural questions about any stock and get intelligent answers grounded in live financial news.
+Real-time stock analysis powered by **Google Gemini AI** and **Pinecone Vector Search**. Ask natural questions about any stock and get intelligent answers grounded in live financial news.
 
 ---
 
@@ -16,10 +16,10 @@ Real-time stock analysis powered by **Google Gemini AI** and **MongoDB Vector Se
 
 - 📊 **Real-Time Stock Data** — Live prices, 30-day interactive charts, ticker search
 - 🤖 **AI Chat** — Ask questions about stocks, get intelligent answers powered by Gemini AI
-- 🔍 **Semantic Search** — MongoDB Vector Search matches questions to relevant news
+- 🔍 **Semantic Search** — Pinecone Vector Search matches questions to relevant news
 - 📰 **Live News** — Automatic financial news ingestion and AI-powered analysis
 - 💾 **Chat History** — Persistent conversations saved per user
-- 🔐 **Secure Auth** — JWT authentication with HttpOnly cookies
+- 🔐 **Secure Auth** — JWT authentication, Email OTP Verification, and HttpOnly cookies
 - 📱 **Responsive UI** — Mobile-first design with modern, premium aesthetics
 
 ---
@@ -34,12 +34,13 @@ Real-time stock analysis powered by **Google Gemini AI** and **MongoDB Vector Se
 
 **Backend**
 - Node.js + Express 5
-- MongoDB Atlas with Vector Search
+- MongoDB Atlas (Data storage) & Pinecone (Vector Search)
 - Google Gemini 2.5 Flash AI
 - Render hosting
 
 **APIs & Services**
 - Google Gemini (AI chat & embeddings)
+- Pinecone (Vector Database)
 - Yahoo Finance (stock data)
 - Finnhub (market news)
 
@@ -49,10 +50,13 @@ Real-time stock analysis powered by **Google Gemini AI** and **MongoDB Vector Se
 
 ### Authentication
 ```
-POST   /api/v1/auth/register    Create account
-POST   /api/v1/auth/login       Login
-POST   /api/v1/auth/logout      Logout
-GET    /api/v1/auth/me          Get profile
+POST   /api/v1/auth/register       Create account & send OTP
+POST   /api/v1/auth/verify-email   Verify email with OTP
+POST   /api/v1/auth/resend-otp     Resend verification OTP
+POST   /api/v1/auth/login          Login
+POST   /api/v1/auth/logout         Logout current device
+POST   /api/v1/auth/logoutall      Logout all devices
+GET    /api/v1/auth/me             Get profile
 ```
 
 ### Chat & Analysis
@@ -79,7 +83,9 @@ User Query: "How is Apple performing?"
     ↓
 [Backend] Embeds question with Gemini
     ↓
-MongoDB Vector Search finds relevant news
+Pinecone Vector Search finds relevant news IDs
+    ↓
+Fetch full articles from MongoDB
     ↓
 RAG: Feed articles + context to Gemini
     ↓
@@ -99,6 +105,8 @@ NODE_ENV=production
 MONGO_URI=mongodb+srv://...
 JWT_SECRET=your-secret-key
 GEMINI_API_KEY=your-key
+PINECONE_API_KEY=your-key
+PINECONE_INDEX=your-index-name
 FINNHUB_API_KEY=your-key
 FRONTEND_URLS=https://market-sense-ai-ten.vercel.app
 ```
@@ -180,24 +188,26 @@ MarketSense-AI/
 ## 💡 How It Works
 
 1. **User registers** with email/password
-2. **User logs in** and accesses the dashboard
-3. **User searches** for a stock ticker
-4. **Charts load** with live price data
-5. **User asks a question** about the stock
-6. **AI analyzes** relevant news articles via vector search
-7. **Gemini AI** generates an intelligent, sourced answer
-8. **Conversation saved** to user's chat history
+2. **User verifies email** via OTP sent to their inbox
+3. **User logs in** and accesses the dashboard
+4. **User searches** for a stock ticker
+5. **Charts load** with live price data
+6. **User asks a question** about the stock
+7. **AI analyzes** relevant news articles via Pinecone vector search
+8. **Gemini AI** generates an intelligent, sourced answer
+9. **Conversation saved** to user's chat history
 
 ---
 
 ## 🔒 Security
 
 - ✅ Password hashing with bcryptjs
+- ✅ Email OTP Verification for new accounts
 - ✅ JWT authentication with HttpOnly cookies
 - ✅ CORS configured for production domains
 - ✅ Rate limiting on auth endpoints (10 req/15min)
 - ✅ Input validation & error handling
-- ✅ MongoDB vector search on encrypted connections
+- ✅ Pinecone vector search on encrypted connections
 
 ---
 

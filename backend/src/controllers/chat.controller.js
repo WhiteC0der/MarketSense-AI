@@ -5,41 +5,103 @@ import { queryVectors } from '../services/pinecone.service.js';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-/**
- * Query Pinecone for the top 3 most semantically similar articles to the query vector,
- * filtered by ticker. Then fetch full article data from MongoDB using the returned IDs.
- *
- * Flow: queryVector → Pinecone (filter: ticker) → [mongoIds] → MongoDB.find → articles
- */
-const runVectorSearch = async (queryVector, ticker) => {
-    // ── Step 1: Ask Pinecone for the closest vectors for this ticker ──────────
-    const matches = await queryVectors(queryVector, ticker, 5);
-    // matches = [{ id: "64abc...", score: 0.91 }, { id: "64def...", score: 0.87 }, ...]
+// ── Unix timestamp helpers ────────────────────────────────────────────────────
+const daysAgoUnix = (days) => Math.floor(Date.now() / 1000) - days * 86400;
 
+/**
+ * Classify the user's query intent using Gemini Flash so we can choose the
+ * right Pinecone date window upfront:
+ *   "recent"     → last 14 days  (e.g. "why is META down today?")
+ *   "historical" → no date filter (e.g. "what happened in April earnings?")
+ *   "general"    → last 90 days  (e.g. "what is META's AI strategy?")
+ */
+const classifyIntent = async (question) => {
+    try {
+        const intentPrompt = `Classify this financial query into EXACTLY ONE of these categories:
+- "recent"     → user is asking about today, this week, latest, current, or recent events
+- "historical" → user is asking about a specific past date, quarter, or event older than ~2 weeks
+- "general"    → user is asking about long-term strategy, trends, definitions, or broad analysis
+
+Query: "${question}"
+
+Reply with ONLY one word: recent | historical | general`;
+
+        const res = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: intentPrompt,
+        });
+        const intent = res.text.trim().toLowerCase();
+        if (['recent', 'historical', 'general'].includes(intent)) return intent;
+        return 'general'; // safe fallback
+    } catch {
+        return 'general'; // if classification fails, use widest window
+    }
+};
+
+/**
+ * Fetch full article data from MongoDB for a list of Pinecone match IDs,
+ * preserving Pinecone relevance scores and sorting by publishedAt descending.
+ */
+const fetchArticlesFromMongo = async (matches) => {
     if (!matches || matches.length === 0) return [];
 
-    // ── Step 2: Extract MongoDB IDs and create score lookup map ──────────────
     const mongoIds = matches.map((m) => m.id);
 
-    // ── Step 3: Fetch full article data from MongoDB (include _id) ───────────
     const articles = await News.find({ _id: { $in: mongoIds } })
-        .select('headline summary url _id')
+        .select('headline summary url publishedAt _id')
         .lean();
 
     const articleMap = new Map(articles.map((art) => [art._id.toString(), art]));
 
-    // ── Step 4: Preserve Pinecone order and correctly attach matching score ──
     return matches
         .map((match) => {
             const article = articleMap.get(match.id);
             if (!article) return null;
             const { _id, ...rest } = article;
-            return {
-                ...rest,
-                score: match.score,
-            };
+            return { ...rest, score: match.score };
         })
-        .filter(Boolean);
+        .filter(Boolean)
+        // Sort by date DESC so LLM always sees freshest articles first
+        .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+};
+
+/**
+ * 3-Stage Adaptive Retrieval Pipeline:
+ *
+ *  Stage 1: Intent-based date window (14 days / 90 days / no filter)
+ *  Stage 2: If < 3 results → widen to 90-day window and retry
+ *  Stage 3: If still < 3 results → remove date filter entirely (full archive)
+ *
+ * Flow: intent → Pinecone (cutoff) → [mongoIds] → MongoDB → sorted articles
+ */
+const runVectorSearch = async (queryVector, ticker, intent) => {
+    const MIN_RESULTS = 3;
+
+    // ── Map intent → initial Pinecone cutoff ─────────────────────────────────
+    let cutoff;
+    if (intent === 'recent')     cutoff = daysAgoUnix(14);
+    else if (intent === 'general') cutoff = daysAgoUnix(90);
+    else                          cutoff = null; // historical: no date filter
+
+    // ── Stage 1: Intent-driven query ─────────────────────────────────────────
+    let matches = await queryVectors(queryVector, ticker, 10, cutoff);
+    console.log(`[RAG] Stage 1 (${intent}, cutoff=${cutoff ?? 'none'}): ${matches.length} matches`);
+
+    // ── Stage 2: Widen to 90 days if not enough results ──────────────────────
+    if (matches.length < MIN_RESULTS && cutoff !== null && cutoff === daysAgoUnix(14)) {
+        console.log(`[RAG] Stage 2 fallback: widening to 90-day window`);
+        matches = await queryVectors(queryVector, ticker, 10, daysAgoUnix(90));
+        console.log(`[RAG] Stage 2 result: ${matches.length} matches`);
+    }
+
+    // ── Stage 3: Remove date filter entirely if still not enough ─────────────
+    if (matches.length < MIN_RESULTS) {
+        console.log(`[RAG] Stage 3 fallback: removing date filter (full archive)`);
+        matches = await queryVectors(queryVector, ticker, 8, null);
+        console.log(`[RAG] Stage 3 result: ${matches.length} matches`);
+    }
+
+    return fetchArticlesFromMongo(matches);
 };
 
 const getAuthenticatedUserId = (req, res) => {
@@ -108,6 +170,11 @@ export const sendMessage = async (req, res) => {
 
         console.log(`User asks: "${question}" for ${ticker}`);
 
+        // ── Step 1: Classify intent to pick the right date window ────────────
+        const intent = await classifyIntent(question);
+        console.log(`[RAG] Intent classified as: "${intent}"`);
+
+        // ── Step 2: Embed the enriched query ──────────────────────────────────
         const enrichedQuery = `Financial news and market analysis specifically regarding ${ticker} stock. User question: ${question}`;
         const embedResponse = await ai.models.embedContent({
             model: 'gemini-embedding-001', 
@@ -116,7 +183,8 @@ export const sendMessage = async (req, res) => {
         
         const queryVector = embedResponse.embeddings[0].values || embedResponse.embeddings[0]; 
 
-        const searchResults = await runVectorSearch(queryVector, ticker);
+        // ── Step 3: Adaptive retrieval with 3-stage fallback ──────────────────
+        const searchResults = await runVectorSearch(queryVector, ticker, intent);
 
         const contextText = searchResults.length > 0 
             ? searchResults.map(doc => `Headline: ${doc.headline}\nSummary: ${doc.summary}`).join('\n\n')

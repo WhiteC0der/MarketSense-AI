@@ -56,9 +56,10 @@ const processAndSaveNews = async (ticker, articles) => {
             await newArticle.save();
 
             // ── Upsert vector to Pinecone using MongoDB _id as the vector ID ──────
-            // This links Pinecone results back to MongoDB documents
+            // publishedAt stored as Unix timestamp so Pinecone can filter by date range
             await upsertVector(newArticle._id, embeddingVector, {
                 ticker: ticker.toUpperCase(),
+                publishedAt: Math.floor(newArticle.publishedAt.getTime() / 1000),
             });
 
             savedCount++;

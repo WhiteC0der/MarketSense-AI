@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import axios from 'axios';
 import { GoogleGenAI } from '@google/genai';
 import News from '../models/news.model.js';
+import { upsertVector } from '../services/pinecone.service.js';
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -52,13 +53,18 @@ const startNewsJob = () => {
                         });
                         const vectorArray = embedResult.embeddings[0].values;
 
-                        await News.create({
+                        const savedDoc = await News.create({
                             ticker: ticker,
                             headline: article.headline,
                             summary: article.summary,
                             url: article.url,
                             publishedAt: new Date(article.datetime * 1000),
-                            embedding: vectorArray
+                        });
+
+                        // ── Push vector to Pinecone with date metadata ────────
+                        await upsertVector(savedDoc._id, vectorArray, {
+                            ticker: ticker.toUpperCase(),
+                            publishedAt: Math.floor(savedDoc.publishedAt.getTime() / 1000),
                         });
 
                         processedCount++;
