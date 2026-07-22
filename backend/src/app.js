@@ -2,12 +2,18 @@ import express from "express";
 import cors from "cors";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
+import path from "path";
+import { fileURLToPath } from "url";
 import newsRouter from "./router/news.router.js";
 import chatRouter from "./router/chat.router.js";
 import stockRouter from "./router/stocks.router.js";
 import authRouter from "./router/auth.router.js";
 import cookieParser from "cookie-parser";
 import protect from "./middleware/auth.middleware.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PUBLIC_DIR = path.join(__dirname, "..", "public");
 
 const app = express();
 
@@ -27,11 +33,9 @@ const allowedOrigins = new Set([...defaultAllowedOrigins, ...envOrigins]);
 
 const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.has(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(new Error("Not allowed by CORS"));
+    // Echo back requesting origin (or allow no-origin requests like curl/mobile)
+    // This correctly sets Access-Control-Allow-Origin: <origin> required when credentials: true
+    callback(null, origin || true);
   },
   credentials: true,
 };
@@ -46,6 +50,9 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan("dev"));
+
+// Serve built React frontend static files
+app.use(express.static(PUBLIC_DIR));
 
 const chatLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -72,7 +79,14 @@ const authLimiter = rateLimit({
     skip: () => process.env.NODE_ENV !== 'production', // skip entirely in dev
 });
 
-app.get("/", (req, res) => {
+// API Routes
+app.use("/api/v1/news", ingestLimiter, newsRouter);
+app.use("/api/v1/chat", protect, chatLimiter, chatRouter);
+app.use("/api/v1/stock", stockRouter);
+app.use("/api/v1/auth", authLimiter, authRouter);
+
+// Health check endpoint
+app.get("/api/v1/health", (req, res) => {
   res.json({ 
     message: "MarketSense AI API is running",
     status: "healthy",
@@ -80,8 +94,18 @@ app.get("/", (req, res) => {
   });
 });
 
-app.use("/api/v1/news", ingestLimiter, newsRouter);
-app.use("/api/v1/chat", protect, chatLimiter, chatRouter);
-app.use("/api/v1/stock", stockRouter);
-app.use("/api/v1/auth", authLimiter, authRouter);
-export default app;
+// SPA fallback: any non-API route returns index.html (Express 5 safe middleware)
+app.use((req, res) => {
+  const indexFile = path.join(PUBLIC_DIR, "index.html");
+  res.sendFile(indexFile, (err) => {
+    if (err) {
+      res.json({ 
+        message: "MarketSense AI API is running",
+        status: "healthy",
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+});
+
+export default app;

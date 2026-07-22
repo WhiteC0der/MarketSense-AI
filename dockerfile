@@ -9,7 +9,12 @@ RUN npm install
 
 COPY ./frontend .
 
+# Accept API base URL as a build argument (passed via --build-arg at docker build time)
+ARG VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+
 RUN npm run build
+
 
 # Stage 2: Backend + serve frontend dist
 FROM node:24-alpine
