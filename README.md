@@ -21,8 +21,8 @@
 
 | Platform | URL | Stack |
 |----------|-----|-------|
-| **Vercel** (Frontend) | [market-sense-ai.vercel.app](https://market-sense-ai.vercel.app) | React + Vite CDN |
-| **AWS EC2** (Full Stack) | [16.171.162.230](http://16.171.162.230) | Docker + Nginx + EC2 |
+| **Vercel**  | [market-sense-ai.vercel.app](https://market-sense-ai.vercel.app) | React + Vite CDN |
+| **AWS EC2** | [16.171.162.230](http://16.171.162.230) | Docker + Nginx + EC2 |
 
 ---
 
