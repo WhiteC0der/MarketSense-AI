@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceDot } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { stockAPI } from '@/lib/api';
 
 const CustomTooltip = ({ active, payload }) => {
@@ -85,7 +85,7 @@ function computeVisibleTicks(data, maxLabels = 8) {
   return visible;
 }
 
-export default function StockChart({ isVisible, chartData: externalChartData, ticker = 'AAPL', isMobile = false, liveTicks = [], livePrice = null }) {
+export default function StockChart({ isVisible, chartData: externalChartData, ticker = 'AAPL', isMobile = false }) {
   const [displayData, setDisplayData] = useState([]);
   const [currentPrice, setCurrentPrice] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -116,44 +116,18 @@ export default function StockChart({ isVisible, chartData: externalChartData, ti
     if (chartArray.length > 0) { setDisplayData(chartArray); setCurrentPrice(price); }
   }, [externalChartData, displayData.length]);
 
-  // Merge historical data with live ticks — only keep latest live point
+  // Build chart data from historical display data
   const chartToDisplay = useMemo(() => {
     const base = displayData.length > 0 ? displayData : FALLBACK_DATA;
 
-    // Normalize historical data with clean labels
-    const historical = base.map((d) => ({
+    return base.map((d) => ({
       label: d.date,
       fullLabel: d.date,
       price: d.price,
       isLive: false,
     }));
+  }, [displayData]);
 
-    if (liveTicks.length === 0 && livePrice !== null) {
-      // Single live price point — just show "Now"
-      return [...historical, { label: 'Now', fullLabel: 'Live', price: livePrice, isLive: true }];
-    }
-
-    if (liveTicks.length > 0) {
-      // Only append the LATEST live tick to keep the chart clean
-      const latest = liveTicks[liveTicks.length - 1];
-      // Short time label for X-axis, full for tooltip
-      const shortTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-      return [...historical, {
-        label: shortTime,
-        fullLabel: latest.time,
-        price: latest.price,
-        isLive: true,
-      }];
-    }
-
-    return historical;
-  }, [displayData, liveTicks, livePrice]);
-
-  // Get the last live point for the pulsing dot
-  const lastLivePoint = useMemo(() => {
-    const lastPoint = chartToDisplay[chartToDisplay.length - 1];
-    return lastPoint?.isLive ? lastPoint : null;
-  }, [chartToDisplay]);
 
   // Compute which X-axis ticks to show
   const maxLabels = isMobile ? 5 : 8;
@@ -186,23 +160,12 @@ export default function StockChart({ isVisible, chartData: externalChartData, ti
     ? { top: 5, right: 15, left: 30, bottom: 5 }
     : { top: 10, right: 30, left: 50, bottom: 5 };
 
-  const hasLiveData = liveTicks.length > 0 || livePrice !== null;
-
   return (
     <div className={`overflow-hidden transition-all duration-500 ease-in-out ${isVisible ? 'max-h-80 opacity-100' : 'max-h-0 opacity-0'}`}>
       <div className="bg-zinc-900/60 backdrop-blur-md border-b border-zinc-800 p-3 md:p-4 space-y-2 md:space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xs font-mono tracking-widest text-zinc-500 uppercase">{ticker}</span>
-            {hasLiveData && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
-                </span>
-                <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">Live</span>
-              </span>
-            )}
           </div>
           {loading && <span className="text-[10px] text-zinc-500 animate-pulse">Updating...</span>}
         </div>
@@ -234,18 +197,6 @@ export default function StockChart({ isVisible, chartData: externalChartData, ti
               />
               <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(20, 184, 166, 0.1)' }} />
               <Area type="monotone" dataKey="price" stroke="#14b8a6" strokeWidth={2} fillOpacity={1} fill={`url(#colorPrice-${ticker})`} isAnimationActive={false} />
-              {/* Pulsing dot on the last live data point */}
-              {lastLivePoint && (
-                <ReferenceDot
-                  x={lastLivePoint.label}
-                  y={lastLivePoint.price}
-                  r={5}
-                  fill="#10b981"
-                  stroke="#10b981"
-                  strokeWidth={2}
-                  className="animate-pulse"
-                />
-              )}
             </AreaChart>
           </ResponsiveContainer>
         </div>

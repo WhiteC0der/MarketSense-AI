@@ -7,7 +7,6 @@ import { chatAPI, stockAPI, newsAPI } from '@/lib/api';
 import { resolveTicker } from '@/lib/tickerResolver';
 import { useAuth } from '@/context/AuthContext';
 import { useIsMobile } from '@/hooks/useMobile';
-import { useAlpacaLive } from '@/hooks/useAlpacaLive';
 import { toast } from 'sonner';
 
 // Lazy load StockChart since it includes recharts (~200KB)
@@ -60,8 +59,6 @@ export default function Dashboard() {
   const [recentChats, setRecentChats] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
 
-  // Live Alpaca WebSocket price stream
-  const { livePrice, liveTicks, isConnected: isLiveConnected } = useAlpacaLive(currentTicker);
 
   // Close sidebar drawer when switching to desktop
   useEffect(() => {
@@ -164,17 +161,6 @@ export default function Dashboard() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
-  // Use live WebSocket price when available, fallback to REST polling
-  useEffect(() => {
-    if (livePrice !== null) {
-      setCurrentPrice(livePrice);
-    }
-  }, [livePrice]);
-
-  // REST polling fallback — runs on mount and every 60s as baseline
-  const livePriceRef = useRef(livePrice);
-  livePriceRef.current = livePrice;
-
   useEffect(() => {
     let mounted = true;
 
@@ -183,13 +169,10 @@ export default function Dashboard() {
         const data = await stockAPI.getChart(currentTicker);
         if (mounted) {
           setChartData(data);
-          // Only set price from REST if no live price yet
-          if (livePriceRef.current === null) {
-            setCurrentPrice(data.currentPrice ?? null);
-          }
+          setCurrentPrice(data.currentPrice ?? null);
         }
       } catch {
-        if (mounted && livePriceRef.current === null) {
+        if (mounted) {
           setCurrentPrice(null);
         }
       }
@@ -366,7 +349,7 @@ export default function Dashboard() {
           isSearching={isScanning}
           isMobile={isMobile}
           onMenuToggle={() => setSidebarOpen(true)}
-          isLiveConnected={isLiveConnected}
+          isLiveConnected={true}
         />
 
         {/* Chart Area - Lazy loaded */}
@@ -376,7 +359,7 @@ export default function Dashboard() {
               <p className="text-zinc-500 text-sm animate-pulse">Loading chart...</p>
             </div>
           }>
-            <StockChart isVisible={showChart} chartData={chartData} ticker={currentTicker} isMobile={isMobile} liveTicks={liveTicks} livePrice={livePrice} />
+            <StockChart isVisible={showChart} chartData={chartData} ticker={currentTicker} isMobile={isMobile} />
           </Suspense>
         )}
 

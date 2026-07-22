@@ -16,7 +16,6 @@ const defaultAllowedOrigins = [
   "http://localhost:3000",
   "http://localhost:3001",
   "https://market-sense-ai.vercel.app",
-  "/"
 ];
 
 const envOrigins = (process.env.FRONTEND_URLS || "")
@@ -24,7 +23,7 @@ const envOrigins = (process.env.FRONTEND_URLS || "")
   .map((origin) => origin.trim())
   .filter(Boolean);
 
-export const allowedOrigins = new Set([...defaultAllowedOrigins, ...envOrigins]);
+const allowedOrigins = new Set([...defaultAllowedOrigins, ...envOrigins]);
 
 const corsOptions = {
   origin: (origin, callback) => {
@@ -66,10 +65,11 @@ const ingestLimiter = rateLimit({
 
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 10,
+    max: process.env.NODE_ENV === 'production' ? 10 : 100,
     message: "Too many login attempts. Please try again later.",
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => process.env.NODE_ENV !== 'production', // skip entirely in dev
 });
 
 app.get("/", (req, res) => {
