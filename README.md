@@ -365,23 +365,6 @@ FRONTEND_URLS=https://market-sense-ai.vercel.app
 VITE_API_BASE_URL=https://your-backend-url/api/v1
 ```
 
----
-
-## 📈 Development Status
-
-| Feature | Status |
-|---------|--------|
-| JWT Auth + Email OTP | ✅ Production Ready |
-| Real-Time Stock Charts | ✅ Production Ready |
-| AI Chat (RAG Pipeline) | ✅ Production Ready |
-| News Ingestion & Embedding | ✅ Production Ready |
-| Docker Containerization | ✅ Production Ready |
-| AWS EC2 Deployment | ✅ Live |
-| Vercel Frontend Deployment | ✅ Live |
-| Nginx Reverse Proxy | ✅ Configured |
-
----
-
 <div align="center">
 
 **Built by [WhiteC0der](https://github.com/WhiteC0der)**
