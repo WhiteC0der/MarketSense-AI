@@ -17,7 +17,7 @@ FROM node:24-alpine
 WORKDIR /app
 
 # Non-sensitive defaults only; pass secrets at runtime via --env-file
-ENV PORT=5000
+ENV PORT=3000
 ENV MONGODB_NAME=marketsense
 
 COPY ./backend/package.json ./backend/package-lock.json ./
